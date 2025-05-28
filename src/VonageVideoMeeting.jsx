@@ -967,6 +967,23 @@ const VonageVideoMeeting = ({
     );
   };
 
+  const stopScreenShare = () => {
+    if (!sessionRef.current || !publisherRef.current) return;
+
+    sessionRef.current.unpublish(publisherRef.current);
+    publisherRef.current.destroy();
+    publisherRef.current = null;
+
+    setScreenShareState({
+      isSharing: false,
+      isReceiving: false,
+      sharedBy: null,
+      screenShareStream: null,
+    });
+
+    setMeetingState((prev) => ({ ...prev, screenShare: false }));
+  };
+
   const toggleScreenShare = useCallback(async () => {
     if (!sessionRef.current || !OT) {
       console.error("Session or OT not available");
@@ -1007,17 +1024,15 @@ const VonageVideoMeeting = ({
           setMeetingState((prev) => ({ ...prev, screenShare: false }));
         }
       } else {
-        // Start screen sharing - use getDisplayMedia API
         try {
           const screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
               cursor: "always",
               displaySurface: "monitor",
             },
-            audio: false, // We'll keep audio from microphone
+            audio: false,
           });
 
-          // Create screen share publisher with the obtained stream
           const screenPublisher = OT.initPublisher(
             publisherElementRef.current,
             {
@@ -1065,14 +1080,13 @@ const VonageVideoMeeting = ({
                   .getVideoTracks()[0]
                   .addEventListener("ended", () => {
                     console.log("Screen share ended by user");
-                    toggleScreenShare(); // Stop sharing when user stops from browser
+                    stopScreenShare();
                   });
 
-                // Listen for publisher events
                 screenPublisher.on("mediaStopped", (event) => {
                   console.log("Screen share media stopped", event);
                   if (event.track && event.track.kind === "video") {
-                    toggleScreenShare();
+                    stopScreenShare();
                   }
                 });
               });
