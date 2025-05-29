@@ -10,6 +10,7 @@ const LandingPage = ({
   extractSessionIdFromUrl,
   setSessionId,
   setIsHost,
+  customStyle = {}
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
@@ -20,7 +21,7 @@ const LandingPage = ({
 
     try {
       const meetingData = await createMeeting({
-        name: "Host", // You can make this dynamic if needed
+        name: "Host",
         role: "host",
       });
 
@@ -52,27 +53,45 @@ const LandingPage = ({
     setCurrentView("prejoin");
   };
 
+  const defaultStyles = {
+    container: "min-h-screen bg-white flex items-center justify-between p-16",
+    leftSection: "flex-1",
+    heading: "text-5xl font-bold text-gray-900 leading-tight",
+    subheading: "text-lg text-blue-500 mt-4",
+    rightSection: "flex-1 flex flex-col items-center gap-6",
+    createButton: "w-full text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2",
+    dividerContainer: "relative w-full",
+    dividerLine: "absolute inset-0 flex items-center",
+    dividerLineInner: "w-full border-t border-gray-300",
+    dividerTextContainer: "relative flex justify-center text-sm",
+    dividerText: "px-2 bg-white text-gray-500",
+    joinSection: "space-y-3",
+    input: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+    joinButton: "w-full text-white font-semibold py-3 px-6 rounded-lg transition duration-200",
+    errorBox: "mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg",
+  };
+
+  const styles = { ...defaultStyles, ...customStyle };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Video Meeting
-          </h1>
-          <p className="text-gray-600">Connect with your team instantly</p>
-        </div>
+    <div className={styles.container}>
+      <div className={styles.leftSection}>
+        <h1 className={styles.heading}>
+          Welcome to the <br />
+          Voyage Video <br />
+          React App
+        </h1>
+        <p className={styles.subheading}>
+          Create a new room or join an existing one.
+        </p>
+      </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
-
+      <div className={styles.rightSection}>
         <div className="space-y-4">
           <button
             onClick={handleCreateMeeting}
             disabled={isCreating}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+            className={`${styles.createButton} ${isCreating ? "bg-blue-300 cursor-not-allowed" : "hover:bg-blue-700"}`}
             style={{ backgroundColor: themeColors?.primary || "#2563eb" }}
           >
             {isCreating ? (
@@ -88,31 +107,37 @@ const LandingPage = ({
             )}
           </button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
+          <div className={styles.dividerContainer}>
+            <div className={styles.dividerLine}>
+              <div className={styles.dividerLineInner} />
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
+            <div className={styles.dividerTextContainer}>
+              <span className={styles.dividerText}>or</span>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className={styles.joinSection}>
             <input
               type="text"
               placeholder="Enter meeting link"
               value={meetingLink}
               onChange={(e) => setMeetingLink(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={styles.input}
             />
             <button
               onClick={handleJoinMeeting}
               disabled={!meetingLink.trim()}
-              className="w-full bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
+              className={`${styles.joinButton} ${!meetingLink.trim() ? "bg-gray-300 cursor-not-allowed" : "bg-gray-600 hover:bg-gray-700"}`}
             >
               Join Meeting
             </button>
           </div>
+
+          {error && (
+            <div className={styles.errorBox}>
+              {error}
+            </div>
+          )}
         </div>
       </div>
     </div>

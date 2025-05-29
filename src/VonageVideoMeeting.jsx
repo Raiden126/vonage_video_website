@@ -48,6 +48,8 @@ const VonageVideoMeeting = ({
   icons = {},
   theme = {},
   styles = {},
+  landingPageStyle = {},
+  preJoinPageStyle = {}
 }) => {
   const [currentView, setCurrentView] = useState("landing");
   const [userName, setUserName] = useState(username || "");
@@ -843,7 +845,7 @@ const VonageVideoMeeting = ({
               try {
                 const userData = JSON.parse(conn.data);
                 name = userData.name || name;
-              } catch {}
+              } catch { }
             }
             return {
               id: conn.connectionId,
@@ -1005,7 +1007,7 @@ const VonageVideoMeeting = ({
               try {
                 const userData = JSON.parse(conn.data);
                 name = userData.name || name;
-              } catch {}
+              } catch { }
             }
             return {
               id: conn.connectionId,
@@ -1460,6 +1462,7 @@ const VonageVideoMeeting = ({
         extractSessionIdFromUrl={extractSessionIdFromUrl}
         setSessionId={setSessionId}
         setIsHost={setIsHost}
+        customStyle={landingPageStyle}
       />
     );
   }
@@ -1485,6 +1488,7 @@ const VonageVideoMeeting = ({
         meetingLink={meetingLink}
         copyMeetingLink={copyMeetingLink}
         linkCopied={linkCopied}
+        customStyle={preJoinPageStyle}
       />
     );
   }
