@@ -64,8 +64,8 @@ const VonageVideoMeeting = ({
     microphone: "",
   });
   const [previewEnabled, setPreviewEnabled] = useState({
-    video: true,
-    audio: true,
+    video: false,
+    audio: false,
   });
   const [meetingState, setMeetingState] = useState({
     video: true,
@@ -1259,11 +1259,11 @@ const VonageVideoMeeting = ({
   }, [screenShareState.isSharing, meetingState, userName, selectedDevices, OT]);
 
   const toggleChat = () => {
-    setMeetingState((prev) => ({ ...prev, chat: !prev.chat }));
+    setMeetingState((prev) => ({ ...prev, chat: !prev.chat, participants: false }));
   };
 
   const toggleParticipants = () => {
-    setMeetingState((prev) => ({ ...prev, participants: !prev.participants }));
+    setMeetingState((prev) => ({ ...prev, participants: !prev.participants, chat: false }));
   };
 
   const takeScreenshot = useCallback(async (options = {}) => {

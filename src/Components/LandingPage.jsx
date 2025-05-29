@@ -79,7 +79,7 @@ const LandingPage = ({
         <h1 className={styles.heading}>
           Welcome to the <br />
           Voyage Video <br />
-          React App
+          Meeting Platform
         </h1>
         <p className={styles.subheading}>
           Create a new room or join an existing one.
