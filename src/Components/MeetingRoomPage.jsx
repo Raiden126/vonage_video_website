@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import LeaveMeetingModal from "./LeaveMeetingModel";
 
 const MeetingRoomPage = ({
   copyMeetingLink,
@@ -21,12 +22,17 @@ const MeetingRoomPage = ({
   toggleParticipants,
   showReactionPicker,
   screenShareState,
+  isHost,
   availableEmojis,
   sendReaction,
   reactions,
   setShowReactionPicker,
   leaveMeeting,
   reactionButtonRef,
+  handleLeaveMeetingClick,
+  showLeaveMeetingModal,
+  setShowLeaveMeetingModal,
+  transferHost,
 }) => {
   const subscriberRefs = useRef(new Map());
   const messagesEndRef = useRef(null);
@@ -197,7 +203,9 @@ const MeetingRoomPage = ({
                       {userName} - Screen Share (You)
                     </div>
                   </>
-                ) : null}
+                ) : (
+                  <h1>Screenshare</h1>
+                )}
               </div>
 
               <div
@@ -351,7 +359,8 @@ const MeetingRoomPage = ({
               {chatMessages.map((message) => (
                 <div key={message.id} className="mb-3">
                   <div className="text-xs text-gray-400 mb-1">
-                    {message.sender} • {message.timestamp.toLocaleTimeString()}
+                    {message.sender} •{" "}
+                    {new Date(message.timestamp).toLocaleTimeString()}
                   </div>
                   <div className="text-white break-words whitespace-pre-wrap">
                     {message.message}
@@ -402,7 +411,8 @@ const MeetingRoomPage = ({
                   </div>
                   <div className="flex-1">
                     <div className="text-white text-sm">
-                      {participant.name} {participant.isLocal && "(You)"}
+                      {participant.name} {participant.isLocal && "(You)"}{" "}
+                      {isHost && "(Host)"}
                     </div>
                   </div>
                   <div className="flex gap-1">
@@ -538,13 +548,22 @@ const MeetingRoomPage = ({
           </button>
 
           <button
-            onClick={leaveMeeting}
+            onClick={handleLeaveMeetingClick}
             className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition duration-200 ml-4"
           >
             <iconComponents.phoneOff className="w-6 h-6" />
           </button>
         </div>
       </div>
+      <LeaveMeetingModal
+        isOpen={showLeaveMeetingModal}
+        onClose={() => setShowLeaveMeetingModal(false)}
+        onConfirm={leaveMeeting}
+        isHost={isHost}
+        participants={participants}
+        getInitials={getInitials}
+        onTransferHost={transferHost}
+      />
     </div>
   );
 };
