@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import LeaveMeetingModal from "./LeaveMeetingModel";
 
 const MeetingRoomPage = ({
   copyMeetingLink,
@@ -21,12 +22,17 @@ const MeetingRoomPage = ({
   toggleParticipants,
   showReactionPicker,
   screenShareState,
+  isHost,
   availableEmojis,
   sendReaction,
   reactions,
   setShowReactionPicker,
   leaveMeeting,
   reactionButtonRef,
+  handleLeaveMeetingClick,
+  showLeaveMeetingModal,
+  setShowLeaveMeetingModal,
+  transferHost,
 }) => {
   const subscriberRefs = useRef(new Map());
   const messagesEndRef = useRef(null);
@@ -61,7 +67,7 @@ const MeetingRoomPage = ({
               // Ensure proper styling
               subscriberElement.style.width = "100%";
               subscriberElement.style.height = "100%";
-              subscriberElement.style.objectFit = "cover";
+              subscriberElement.style.objectFit = "contain";
             }
           } catch (error) {
             console.error("Error positioning subscriber video:", error);
@@ -201,7 +207,9 @@ const MeetingRoomPage = ({
                       {userName} - Screen Share (You)
                     </div>
                   </>
-                ) : null}
+                ) : (
+                  <h1>Screenshare</h1>
+                )}
               </div>
 
               <div
@@ -356,7 +364,9 @@ const MeetingRoomPage = ({
                   <div className="text-xs text-gray-400 mb-1 flex items-center gap-2">
                     <span className="font-medium text-gray-300">{message.sender}</span>
                     <span>•</span>
-                    <span>{message.timestamp.toLocaleTimeString()}</span>
+                    <span>{message.timestamp
+                      ? new Date(message.timestamp).toLocaleTimeString()
+                      : 'Unknown time'}</span>
                   </div>
                   <div className="text-white text-sm bg-gray-700/50 rounded-lg p-2 break-words whitespace-pre-wrap transition-all group-hover:bg-gray-700/70">
                     {message.message}
@@ -545,14 +555,23 @@ const MeetingRoomPage = ({
           </button>
 
           <button
-            onClick={leaveMeeting}
             title="Leave meeting"
+            onClick={handleLeaveMeetingClick}
             className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition duration-200 ml-4"
           >
             <iconComponents.phoneOff className="w-6 h-6" />
           </button>
         </div>
       </div>
+      <LeaveMeetingModal
+        isOpen={showLeaveMeetingModal}
+        onClose={() => setShowLeaveMeetingModal(false)}
+        onConfirm={leaveMeeting}
+        isHost={isHost}
+        participants={participants}
+        getInitials={getInitials}
+        onTransferHost={transferHost}
+      />
     </div>
   );
 };

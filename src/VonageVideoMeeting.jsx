@@ -91,6 +91,7 @@ const VonageVideoMeeting = ({
     sharedBy: null,
     screenShareStream: null,
   });
+  const [showLeaveMeetingModal, setShowLeaveMeetingModal] = useState(false);
 
   // Refs
   const publisherRef = useRef(null);
@@ -640,6 +641,7 @@ const VonageVideoMeeting = ({
                       video: stream.hasVideo,
                       audio: stream.hasAudio,
                       subscriber,
+                      isHost: false,
                     };
 
                     const updatedParticipants = [...prev, newParticipant];
@@ -690,16 +692,19 @@ const VonageVideoMeeting = ({
 
       session.on("streamDestroyed", (event) => {
         const stream = event.stream;
-        if (stream.videoType === "screen") {
+        const isScreenShare =
+          (stream.name && stream.name.includes("(Screen)")) ||
+          stream.videoType === "screen";
+
+        if (isScreenShare) {
           setScreenShareState({
             isSharing: false,
             isReceiving: false,
             sharedBy: null,
             screenShareStream: null,
           });
-        }
-
-        if (stream && stream.streamId) {
+          setParticipants((prev) => prev.filter((p) => !p.isScreenShare));
+        } else if (stream && stream.streamId) {
           setParticipants((prev) =>
             prev.filter((p) => p.id !== stream.streamId)
           );
@@ -788,6 +793,38 @@ const VonageVideoMeeting = ({
         setConnectionError(
           `Session error: ${event.message || "Unknown error"}`
         );
+      });
+
+      session.on("signal:hostTransfer", (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const { newHostId, newHostName, previousHost } = data;
+
+          // Check if current user is the new host
+          const isNewHost =
+            session.connection && session.connection.connectionId === newHostId;
+
+          if (isNewHost) {
+            setIsHost(true);
+            alert(`You are now the host of this meeting!`);
+          } else {
+            setIsHost(false);
+          }
+
+          // Update participants list to reflect new host
+          setParticipants((prev) =>
+            prev.map((p) => ({
+              ...p,
+              isHost: p.id === newHostId,
+            }))
+          );
+
+          console.log(
+            `Host transferred from ${previousHost} to ${newHostName}`
+          );
+        } catch (error) {
+          console.error("Error processing host transfer:", error);
+        }
       });
 
       // Connect to session with timeout using the correct token
@@ -1357,12 +1394,46 @@ const VonageVideoMeeting = ({
     }
   }, []);
 
-  const leaveMeeting = () => {
+  const transferHost = async (newHostId) => {
     try {
-      // Clean up all subscribers first
+      if (!sessionRef.current) return;
+
+      // Send host transfer signal to all participants
+      await new Promise((resolve, reject) => {
+        sessionRef.current.signal(
+          {
+            type: "hostTransfer",
+            data: JSON.stringify({
+              newHostId,
+              newHostName: participants.find((p) => p.id === newHostId)?.name,
+              previousHost: userName,
+            }),
+          },
+          (error) => {
+            if (error) {
+              console.error("Error sending host transfer signal:", error);
+              reject(error);
+            } else {
+              console.log("Host transfer signal sent successfully");
+              resolve();
+            }
+          }
+        );
+      });
+
+      // Update local state
+      setIsHost(false);
+    } catch (error) {
+      console.error("Error transferring host:", error);
+      alert("Failed to transfer host. Please try again.");
+    }
+  };
+
+  const leaveMeeting = () => {
+    setShowLeaveMeetingModal(false);
+    try {
       subscribersRef.current.forEach((subscriber, streamId) => {
         try {
-          // Subscriber cleanup is handled automatically by the SDK
           console.log("Cleaning up subscriber:", streamId);
         } catch (error) {
           console.error("Error cleaning up subscriber:", error);
@@ -1370,7 +1441,6 @@ const VonageVideoMeeting = ({
       });
       subscribersRef.current.clear();
 
-      // Clean up publisher
       if (
         publisherRef.current &&
         typeof publisherRef.current.destroy === "function"
@@ -1379,7 +1449,6 @@ const VonageVideoMeeting = ({
         publisherRef.current = null;
       }
 
-      // Then disconnect session
       if (
         sessionRef.current &&
         typeof sessionRef.current.disconnect === "function"
@@ -1388,7 +1457,6 @@ const VonageVideoMeeting = ({
         sessionRef.current = null;
       }
 
-      // Reset state
       setCurrentView("landing");
       setParticipants([]);
       setChatMessages([]);
@@ -1408,20 +1476,60 @@ const VonageVideoMeeting = ({
     }
   };
 
+  const handleLeaveMeetingClick = () => {
+    setShowLeaveMeetingModal(true);
+  };
+
   const sendChatMessage = () => {
-    if (chatInput.trim()) {
-      setChatMessages((prev) => [
-        ...prev,
+    if (chatInput.trim() && sessionRef.current) {
+      const messageObj = {
+        id: Date.now(),
+        sender: userName,
+        message: chatInput,
+        timestamp: new Date().toISOString(),
+      };
+
+      sessionRef.current.signal(
         {
-          id: Date.now(),
-          sender: userName,
-          message: chatInput,
-          timestamp: new Date(),
+          type: "chat",
+          data: JSON.stringify(messageObj),
         },
-      ]);
-      setChatInput("");
+        (error) => {
+          if (error) {
+            console.error("Error sending chat message:", error);
+          } else {
+            setChatMessages((prev) => [...prev, messageObj]);
+            setChatInput("");
+          }
+        }
+      );
     }
   };
+
+  useEffect(() => {
+    if (!sessionRef.current) return;
+
+    const handleChatSignal = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+          },
+        ]);
+      } catch (e) {
+        console.error("Failed to parse chat message:", e);
+      }
+    };
+
+    sessionRef.current.on("signal:chat", handleChatSignal);
+
+    return () => {
+      sessionRef.current?.off("signal:chat", handleChatSignal);
+    };
+  }, [sessionRef.current]);
 
   const copyMeetingLink = useCallback(async () => {
     try {
@@ -1523,6 +1631,11 @@ const VonageVideoMeeting = ({
       availableEmojis={availableEmojis}
       screenShareState={screenShareState}
       reactionButtonRef={reactionButtonRef}
+      isHost={isHost}
+      handleLeaveMeetingClick={handleLeaveMeetingClick}
+      showLeaveMeetingModal={showLeaveMeetingModal}
+      setShowLeaveMeetingModal={setShowLeaveMeetingModal}
+      transferHost={transferHost}
     />
   );
 };

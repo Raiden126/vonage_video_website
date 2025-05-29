@@ -49,15 +49,58 @@ const PrejoinPage = ({
 }) => {
   const style = { ...defaultStyles, ...customStyle };
 
-  const ToggleButton = ({ enabled, onClick, IconOn, IconOff, label }) => {
+
+  const ToggleButton = ({
+    enabled,
+    onClick,
+    IconOn,
+    IconOff,
+    label,
+    isConnecting,
+    mediaType, // 'camera' or 'microphone'
+  }) => {
     const buttonClass = useMemo(
       () =>
         `${style.toggleButtonBase} ${enabled ? "bg-blue-600 text-white" : "bg-gray-500 text-gray-200"
         }`,
       [enabled]
     );
+
+    const handleClick = async () => {
+      if (isConnecting) return;
+
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+
+        const relevantDevices = devices.filter((device) =>
+          mediaType === "camera"
+            ? device.kind === "videoinput"
+            : mediaType === "microphone"
+              ? device.kind === "audioinput"
+              : false
+        );
+
+        if (relevantDevices.length === 0) {
+          console.log(
+            `No ${mediaType === "camera" ? "camera" : "microphone"} detected. Cannot toggle.`
+          );
+          return;
+        }
+
+        onClick(); // Safe to toggle
+      } catch (error) {
+        console.error("Error checking media devices:", error);
+        console.log("Unable to access media devices.");
+      }
+    };
+
     return (
-      <button onClick={onClick} className={buttonClass} type="button" aria-label={label} disabled={isConnecting}
+      <button
+        onClick={handleClick}
+        className={buttonClass}
+        type="button"
+        aria-label={label}
+        disabled={isConnecting}
       >
         {enabled ? <IconOn className="w-6 h-6" /> : <IconOff className="w-6 h-6" />}
       </button>
@@ -182,6 +225,7 @@ const PrejoinPage = ({
                 IconOn={iconComponents.video}
                 IconOff={iconComponents.videoOff}
                 label="Toggle Camera"
+                mediaType="camera"
               />
               <ToggleButton
                 enabled={previewEnabled.audio}
@@ -189,6 +233,7 @@ const PrejoinPage = ({
                 IconOn={iconComponents.mic}
                 IconOff={iconComponents.micOff}
                 label="Toggle Microphone"
+                mediaType="microphone"
               />
             </div>
 

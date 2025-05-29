@@ -27,6 +27,7 @@ app.post("/api/create-meeting", async (req, res) => {
 
     opentok.createSession(sessionOptions, (err, session) => {
       if (err) {
+        console.log(`apikey: ${apiKey}, secret: ${apiSecret}`);
         console.error("Error creating session:", err);
         return res.status(500).json({
           success: false,
