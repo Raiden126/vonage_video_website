@@ -993,46 +993,30 @@ const VonageVideoMeeting = ({
       publisherRef.current = publisher;
       setIsConnecting(false);
 
-      const existingConnections = session.connections
-        ? Object.keys(session.connections).filter(
-            (id) => id !== session.connection.connectionId
+      setParticipants((prev) => {
+        const ids = new Set(prev.map((p) => p.id));
+        const newParticipants = allConnections
+          .filter(
+            (conn) => conn && conn.connectionId && !ids.has(conn.connectionId)
           )
-        : [];
-      const initialParticipants = [
-        {
-          id: "self",
-          name: userName,
-          isLocal: true,
-          video: finalVideoState,
-          audio: finalAudioState,
-        },
-      ];
-
-      existingConnections.forEach((connectionId) => {
-        const connection = session.connections[connectionId];
-        if (connection && connection.data) {
-          try {
-            const userData = JSON.parse(connection.data);
-            initialParticipants.push({
-              id: connectionId,
-              name: userData.name || "Remote User",
-              isLocal: false,
+          .map((conn) => {
+            let name = "Remote User";
+            if (conn.data) {
+              try {
+                const userData = JSON.parse(conn.data);
+                name = userData.name || name;
+              } catch {}
+            }
+            return {
+              id: conn.connectionId,
+              name,
+              isLocal: conn.connectionId === session.connection.connectionId,
               video: true,
               audio: true,
-            });
-          } catch (e) {
-            initialParticipants.push({
-              id: connectionId,
-              name: "Remote User",
-              isLocal: false,
-              video: true,
-              audio: true,
-            });
-          }
-        }
+            };
+          });
+        return [...prev, ...newParticipants];
       });
-
-      setParticipants(initialParticipants);
 
       console.log("Meeting joined successfully");
     } catch (error) {
