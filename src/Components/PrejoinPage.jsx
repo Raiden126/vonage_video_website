@@ -14,6 +14,10 @@ const PrejoinPage = ({
   setSelectedDevices,
   devices,
   getInitials,
+  isHost,
+  meetingLink,
+  copyMeetingLink,
+  linkCopied,
 }) => {
   return (
     <div className="min-h-screen bg-gray-900 flex">
@@ -37,6 +41,42 @@ const PrejoinPage = ({
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* Show meeting link section for hosts */}
+            {isHost && meetingLink && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Share Meeting Link
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={meetingLink}
+                    readOnly
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                  />
+                  <button
+                    onClick={copyMeetingLink}
+                    className="px-4 py-3 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg transition duration-200 flex items-center gap-2"
+                  >
+                    {linkCopied ? (
+                      <>
+                        <iconComponents.check className="w-4 h-4 text-green-600" />
+                        <span className="text-green-600">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <iconComponents.copy className="w-4 h-4" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Share this link with participants to join your meeting
+                </p>
+              </div>
+            )}
           </div>
 
           <button
@@ -52,7 +92,7 @@ const PrejoinPage = ({
             ) : (
               <>
                 <iconComponents.video className="w-5 h-5" />
-                Join Meeting
+                {isHost ? "Start Meeting" : "Join Meeting"}
               </>
             )}
           </button>
@@ -65,7 +105,7 @@ const PrejoinPage = ({
         </div>
       </div>
 
-      {/* Right Side - Preview */}
+      {/* Right Side - Preview (existing code remains the same) */}
       <div className="w-1/2 bg-gray-900 flex flex-col p-8">
         <div className="flex-1 flex flex-col">
           {/* Camera Preview */}

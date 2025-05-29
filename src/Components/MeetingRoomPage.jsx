@@ -75,24 +75,24 @@ const MeetingRoomPage = ({
     if (publisherElementRef.current) {
       const publisherContainer = publisherElementRef.current;
 
-      console.log("Publisher container children:", publisherContainer.children);
-      console.log(
-        "Publisher container innerHTML:",
-        publisherContainer.innerHTML
-      );
+      //   console.log("Publisher container children:", publisherContainer.children);
+      //   console.log(
+      //     "Publisher container innerHTML:",
+      //     publisherContainer.innerHTML
+      //   );
 
       const videoElement = publisherContainer.querySelector("video");
       const divElements = publisherContainer.querySelectorAll("div");
 
-      console.log("Found video element:", videoElement);
-      console.log("Found div elements:", divElements);
+      //   console.log("Found video element:", videoElement);
+      //   console.log("Found div elements:", divElements);
 
       if (videoElement) {
-        console.log("Video element src:", videoElement.src);
-        console.log("Video element srcObject:", videoElement.srcObject);
-        console.log("Video element videoWidth:", videoElement.videoWidth);
-        console.log("Video element videoHeight:", videoElement.videoHeight);
-        console.log("Video element readyState:", videoElement.readyState);
+        // console.log("Video element src:", videoElement.src);
+        // console.log("Video element srcObject:", videoElement.srcObject);
+        // console.log("Video element videoWidth:", videoElement.videoWidth);
+        // console.log("Video element videoHeight:", videoElement.videoHeight);
+        // console.log("Video element readyState:", videoElement.readyState);
 
         videoElement.style.width = "100%";
         videoElement.style.height = "100%";

@@ -36,18 +36,26 @@ const loadVonageSDK = () => {
 };
 
 const VonageVideoMeeting = ({
-  sessionId,
-  token,
-  apiKey,
+  sessionId: propSessionId,
+  token: propToken,
+  apiKey: propApiKey,
   username,
+  isHost: propIsHost,
+  meetingUrl: propMeetingUrl,
+  createMeeting,
+  generateToken,
+  extractSessionIdFromUrl,
   icons = {},
   theme = {},
   styles = {},
 }) => {
-  // State management
-  const [currentView, setCurrentView] = useState("landing"); // landing, prejoin, meeting
-  const [userName, setUserName] = useState(username);
-  const [meetingLink, setMeetingLink] = useState("");
+  const [currentView, setCurrentView] = useState("landing");
+  const [userName, setUserName] = useState(username || "");
+  const [meetingLink, setMeetingLink] = useState(propMeetingUrl || "");
+  const [sessionId, setSessionId] = useState(propSessionId || "");
+  const [token, setToken] = useState(propToken || "");
+  const [apiKey, setApiKey] = useState(propApiKey || "");
+  const [isHost, setIsHost] = useState(propIsHost || false);
   const [devices, setDevices] = useState({ cameras: [], microphones: [] });
   const [selectedDevices, setSelectedDevices] = useState({
     camera: "",
@@ -87,7 +95,7 @@ const VonageVideoMeeting = ({
   const sessionRef = useRef(null);
   const previewRef = useRef(null);
   const publisherElementRef = useRef(null);
-  const subscribersRef = useRef(new Map()); // Track active subscribers
+  const subscribersRef = useRef(new Map());
   const reactionButtonRef = useRef(null);
 
   // Default icons
@@ -386,26 +394,50 @@ const VonageVideoMeeting = ({
       return;
     }
 
-    if (!apiKey || !sessionId || !token) {
-      setConnectionError("Missing API key, session ID, or token");
+    if (!sessionId) {
+      setConnectionError("Missing session ID");
       return;
     }
 
     setIsConnecting(true);
     setConnectionError("");
 
-    const deviceInfo = await checkDeviceAvailability();
-
-    if (!deviceInfo.hasCamera && !deviceInfo.hasMicrophone) {
-      setConnectionError(
-        "Cannot join meeting: No camera or microphone detected. Please connect at least one device and try again."
-      );
-      setIsConnecting(false);
-      return;
-    }
-
     try {
-      // Clean up any existing session first
+      let currentToken = token;
+      let currentApiKey = apiKey;
+
+      if (!currentToken || !currentApiKey) {
+        const userData = {
+          name: userName,
+          role: isHost ? "host" : "participant",
+        };
+
+        const tokenData = await generateToken(sessionId, userData, "publisher");
+
+        currentToken = tokenData.token;
+        currentApiKey = tokenData.apiKey;
+
+        setToken(currentToken);
+        setApiKey(currentApiKey);
+      }
+
+      if (!currentToken) {
+        throw new Error("Failed to obtain authentication token");
+      }
+
+      if (!currentApiKey) {
+        throw new Error("Failed to obtain API key");
+      }
+      const deviceInfo = await checkDeviceAvailability();
+
+      if (!deviceInfo.hasCamera && !deviceInfo.hasMicrophone) {
+        setConnectionError(
+          "Cannot join meeting: No camera or microphone detected. Please connect at least one device and try again."
+        );
+        setIsConnecting(false);
+        return;
+      }
+
       if (sessionRef.current) {
         try {
           if (typeof sessionRef.current.disconnect === "function") {
@@ -431,7 +463,11 @@ const VonageVideoMeeting = ({
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       console.log("Initializing new session...");
-      const session = OT.initSession(apiKey, sessionId);
+      console.log("Using API Key:", currentApiKey);
+      console.log("Using Session ID:", sessionId);
+      console.log("Using Token:", currentToken?.substring(0, 20) + "...");
+
+      const session = OT.initSession(currentApiKey, sessionId);
       sessionRef.current = session;
 
       // Set up session event handlers
@@ -552,25 +588,63 @@ const VonageVideoMeeting = ({
                   );
                   subscribersRef.current.set(stream.streamId, subscriber);
 
-                  // Add participant only after successful subscription
                   setParticipants((prev) => {
-                    const existing = prev.find((p) => p.id === stream.streamId);
-                    if (existing) return prev;
+                    console.log("Current participants before update:", prev);
 
-                    return [
-                      ...prev,
-                      {
-                        id: stream.streamId,
-                        name: stream.name || "Remote User",
-                        isLocal: false,
+                    const existingStreamIndex = prev.findIndex(
+                      (p) => p.id === stream.streamId
+                    );
+                    if (existingStreamIndex !== -1) {
+                      console.log(
+                        "Updating existing participant with stream ID"
+                      );
+                      const updated = [...prev];
+                      updated[existingStreamIndex] = {
+                        ...updated[existingStreamIndex],
                         video: stream.hasVideo,
                         audio: stream.hasAudio,
                         subscriber,
-                      },
-                    ];
+                      };
+                      return updated;
+                    }
+
+                    const existingConnectionIndex = prev.findIndex(
+                      (p) =>
+                        !p.isLocal && p.id === stream.connection.connectionId
+                    );
+
+                    if (existingConnectionIndex !== -1) {
+                      console.log(
+                        "Updating existing participant from connection to stream"
+                      );
+                      const updated = [...prev];
+                      updated[existingConnectionIndex] = {
+                        ...updated[existingConnectionIndex],
+                        id: stream.streamId, // Update to use stream ID
+                        name:
+                          stream.name || updated[existingConnectionIndex].name,
+                        video: stream.hasVideo,
+                        audio: stream.hasAudio,
+                        subscriber,
+                      };
+                      return updated;
+                    }
+
+                    console.log("Creating new participant for stream");
+                    const newParticipant = {
+                      id: stream.streamId,
+                      name: stream.name || "Remote User",
+                      isLocal: false,
+                      video: stream.hasVideo,
+                      audio: stream.hasAudio,
+                      subscriber,
+                    };
+
+                    const updatedParticipants = [...prev, newParticipant];
+                    console.log("Updated participants:", updatedParticipants);
+                    return updatedParticipants;
                   });
 
-                  // Listen for subscriber events
                   subscriber.on("videoEnabled", () => {
                     setParticipants((prev) =>
                       prev.map((p) =>
@@ -631,7 +705,33 @@ const VonageVideoMeeting = ({
       });
 
       session.on("connectionCreated", (event) => {
-        console.log("Connection created:", event.connection);
+        const isLocal =
+          event.connection.connectionId === session.connection.connectionId;
+        let name = "Remote User";
+        if (event.connection.data) {
+          try {
+            const userData = JSON.parse(event.connection.data);
+            name = userData.name || name;
+          } catch (e) {
+            console.warn("Could not parse connection data");
+          }
+        }
+        setParticipants((prev) => {
+          const exists = prev.find(
+            (p) => p.id === event.connection.connectionId
+          );
+          if (exists) return prev;
+          return [
+            ...prev,
+            {
+              id: event.connection.connectionId,
+              name,
+              isLocal,
+              video: true,
+              audio: true,
+            },
+          ];
+        });
       });
 
       session.on("connectionDestroyed", (event) => {
@@ -688,7 +788,7 @@ const VonageVideoMeeting = ({
         );
       });
 
-      // Connect to session with timeout
+      // Connect to session with timeout using the correct token
       console.log("Connecting to session...");
 
       const connectPromise = new Promise((resolve, reject) => {
@@ -706,7 +806,7 @@ const VonageVideoMeeting = ({
           }
         }, 15000); // 15 second timeout
 
-        session.connect(token, (error) => {
+        session.connect(currentToken, (error) => {
           if (isResolved) return;
 
           clearTimeout(timeout);
@@ -724,6 +824,37 @@ const VonageVideoMeeting = ({
       });
 
       await connectPromise;
+      let allConnections = [];
+      if (typeof session.getConnections === "function") {
+        allConnections = session.getConnections();
+      } else if (session.connections) {
+        allConnections = Object.values(session.connections);
+      }
+
+      setParticipants((prev) => {
+        const ids = new Set(prev.map((p) => p.id));
+        const newParticipants = allConnections
+          .filter(
+            (conn) => conn && conn.connectionId && !ids.has(conn.connectionId)
+          )
+          .map((conn) => {
+            let name = "Remote User";
+            if (conn.data) {
+              try {
+                const userData = JSON.parse(conn.data);
+                name = userData.name || name;
+              } catch {}
+            }
+            return {
+              id: conn.connectionId,
+              name,
+              isLocal: conn.connectionId === session.connection.connectionId,
+              video: true,
+              audio: true,
+            };
+          });
+        return [...prev, ...newParticipants];
+      });
       setCurrentView("meeting");
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -731,7 +862,7 @@ const VonageVideoMeeting = ({
         throw new Error("Publisher element not found - DOM may not be ready");
       }
 
-      console.log("Publisher element found:", publisherElementRef.current);
+      // console.log("Publisher element found:", publisherElementRef.current);
 
       const finalVideoState = previewEnabled.video && deviceInfo.hasCamera;
       const finalAudioState = previewEnabled.audio && deviceInfo.hasMicrophone;
@@ -766,7 +897,7 @@ const VonageVideoMeeting = ({
       };
 
       console.log("Creating publisher with options:", publisherOptions);
-      console.log("Target element:", publisherElementRef.current);
+      // console.log("Target element:", publisherElementRef.current);
 
       const publisherPromise = new Promise((resolve, reject) => {
         const publisher = OT.initPublisher(
@@ -779,8 +910,8 @@ const VonageVideoMeeting = ({
               return;
             }
 
-            console.log("Publisher created successfully:", publisher);
-            console.log("Publisher element:", publisher.element);
+            console.log("Publisher created successfully:");
+            // console.log("Publisher element:", publisher.element);
             console.log(
               "Publisher video element:",
               publisher.element?.querySelector("video")
@@ -862,7 +993,12 @@ const VonageVideoMeeting = ({
       publisherRef.current = publisher;
       setIsConnecting(false);
 
-      setParticipants([
+      const existingConnections = session.connections
+        ? Object.keys(session.connections).filter(
+            (id) => id !== session.connection.connectionId
+          )
+        : [];
+      const initialParticipants = [
         {
           id: "self",
           name: userName,
@@ -870,7 +1006,33 @@ const VonageVideoMeeting = ({
           video: finalVideoState,
           audio: finalAudioState,
         },
-      ]);
+      ];
+
+      existingConnections.forEach((connectionId) => {
+        const connection = session.connections[connectionId];
+        if (connection && connection.data) {
+          try {
+            const userData = JSON.parse(connection.data);
+            initialParticipants.push({
+              id: connectionId,
+              name: userData.name || "Remote User",
+              isLocal: false,
+              video: true,
+              audio: true,
+            });
+          } catch (e) {
+            initialParticipants.push({
+              id: connectionId,
+              name: "Remote User",
+              isLocal: false,
+              video: true,
+              audio: true,
+            });
+          }
+        }
+      });
+
+      setParticipants(initialParticipants);
 
       console.log("Meeting joined successfully");
     } catch (error) {
@@ -911,11 +1073,11 @@ const VonageVideoMeeting = ({
     }
   }, [
     userName,
-    apiKey,
     sessionId,
     token,
-    previewEnabled,
-    selectedDevices,
+    apiKey,
+    isHost,
+    generateToken,
     OT,
     checkDeviceAvailability,
   ]);
@@ -1275,12 +1437,23 @@ const VonageVideoMeeting = ({
     }
   };
 
-  const copyMeetingLink = () => {
-    const link = `${window.location.origin}?session=${sessionId}`;
-    navigator.clipboard.writeText(link);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
-  };
+  const copyMeetingLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(meetingLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+    }
+  }, [meetingLink]);
+
+  useEffect(() => {
+    if (propSessionId) setSessionId(propSessionId);
+    if (propToken) setToken(propToken);
+    if (propApiKey) setApiKey(propApiKey);
+    if (propMeetingUrl) setMeetingLink(propMeetingUrl);
+    if (propIsHost !== undefined) setIsHost(propIsHost);
+  }, [propSessionId, propToken, propApiKey, propMeetingUrl, propIsHost]);
 
   const getInitials = (name) => {
     return name
@@ -1299,6 +1472,10 @@ const VonageVideoMeeting = ({
         setMeetingLink={setMeetingLink}
         meetingLink={meetingLink}
         themeColors={themeColors}
+        createMeeting={createMeeting}
+        extractSessionIdFromUrl={extractSessionIdFromUrl}
+        setSessionId={setSessionId}
+        setIsHost={setIsHost}
       />
     );
   }
@@ -1320,6 +1497,10 @@ const VonageVideoMeeting = ({
         connectionError={connectionError}
         previewRef={previewRef}
         getInitials={getInitials}
+        isHost={isHost}
+        meetingLink={meetingLink}
+        copyMeetingLink={copyMeetingLink}
+        linkCopied={linkCopied}
       />
     );
   }

@@ -1,10 +1,57 @@
+import React, { useState } from "react";
+
 const LandingPage = ({
   iconComponents,
   setCurrentView,
-  setMeetingLink,
   meetingLink,
+  setMeetingLink,
   themeColors,
+  createMeeting,
+  extractSessionIdFromUrl,
+  setSessionId,
+  setIsHost,
 }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleCreateMeeting = async () => {
+    setIsCreating(true);
+    setError("");
+
+    try {
+      const meetingData = await createMeeting({
+        name: "Host", // You can make this dynamic if needed
+        role: "host",
+      });
+
+      setIsHost(true);
+      setCurrentView("prejoin");
+    } catch (error) {
+      console.error("Error creating meeting:", error);
+      setError("Failed to create meeting. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleJoinMeeting = () => {
+    if (!meetingLink.trim()) {
+      setError("Please enter a valid meeting link");
+      return;
+    }
+
+    const extractedSessionId = extractSessionIdFromUrl(meetingLink);
+    if (!extractedSessionId) {
+      setError("Invalid meeting link format");
+      return;
+    }
+
+    setSessionId(extractedSessionId);
+    setIsHost(false);
+    setError("");
+    setCurrentView("prejoin");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
@@ -15,14 +62,30 @@ const LandingPage = ({
           <p className="text-gray-600">Connect with your team instantly</p>
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-4">
           <button
-            onClick={() => setCurrentView("prejoin")}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
-            style={{ backgroundColor: themeColors.primary }}
+            onClick={handleCreateMeeting}
+            disabled={isCreating}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+            style={{ backgroundColor: themeColors?.primary || "#2563eb" }}
           >
-            <iconComponents.video className="w-5 h-5" />
-            Create Meeting
+            {isCreating ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                Creating...
+              </>
+            ) : (
+              <>
+                <iconComponents.video className="w-5 h-5" />
+                Create Meeting
+              </>
+            )}
           </button>
 
           <div className="relative">
@@ -37,13 +100,13 @@ const LandingPage = ({
           <div className="space-y-3">
             <input
               type="text"
-              placeholder="Enter meeting link or ID"
+              placeholder="Enter meeting link"
               value={meetingLink}
               onChange={(e) => setMeetingLink(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <button
-              onClick={() => setCurrentView("prejoin")}
+              onClick={handleJoinMeeting}
               disabled={!meetingLink.trim()}
               className="w-full bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition duration-200"
             >

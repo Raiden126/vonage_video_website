@@ -2,69 +2,81 @@ import React, { useState, useEffect } from "react";
 import VonageVideoMeeting from "./VonageVideoMeeting";
 
 function App() {
-  const [username, setUsername] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [token, setToken] = useState("");
+  const [isHost, setIsHost] = useState(false);
+  const [meetingUrl, setMeetingUrl] = useState("");
 
-  useEffect(() => {
-    // console.log("useEffect triggered with submitted:");
-    if (!submitted) return;
-    // console.log("useEffect triggered with submitted:2");
+  const createMeeting = async (userData) => {
+    try {
+      const response = await fetch("http://localhost:5001/api/create-meeting", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userData }),
+      });
 
-    const fetchToken = async () => {
-      try {
-        const response = await fetch(
-          `http://localhost:5001/api/token?user=${encodeURIComponent(username)}`
-        );
-        if (!response.ok) {
-          throw new Error("Failed to fetch token");
-        }
-
-        const { apiKey, sessionId, token } = await response.json();
-        console.log("Received credentials:", { apiKey, sessionId, token });
-
-        setApiKey(apiKey);
-        setSessionId(sessionId);
-        setToken(token);
-      } catch (error) {
-        console.error("Error fetching token:", error);
+      if (!response.ok) {
+        throw new Error("Failed to create meeting");
       }
-    };
 
-    fetchToken();
-  }, [submitted, username]);
+      const data = await response.json();
+      console.log("Meeting created:", data);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (username.trim()) {
-      setSubmitted(true);
+      setSessionId(data.sessionId);
+      setMeetingUrl(data.meetingUrl);
+      setIsHost(true);
+
+      return data;
+    } catch (error) {
+      console.error("Error creating meeting:", error);
+      throw error;
     }
   };
 
-  if (!submitted) {
-    return (
-      <div style={{ padding: "2rem" }}>
-        <h2>Enter your name to join the meeting</h2>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Your name"
-            required
-            style={{ padding: "0.5rem", marginRight: "1rem" }}
-          />
-          <button type="submit">Join</button>
-        </form>
-      </div>
-    );
-  }
+  const generateToken = async (sessionId, userData, userType = "publisher") => {
+    try {
+      const response = await fetch("http://localhost:5001/api/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          userType,
+          userData,
+        }),
+      });
 
-  if (!apiKey || !sessionId || !token) {
-    return <div>Loading video session...</div>;
-  }
+      if (!response.ok) {
+        throw new Error("Failed to generate token");
+      }
+
+      const data = await response.json();
+      console.log("Token generated:", data);
+
+      setApiKey(data.apiKey);
+      setSessionId(data.sessionId);
+      setToken(data.token);
+
+      return data;
+    } catch (error) {
+      console.error("Error generating token:", error);
+      throw error;
+    }
+  };
+
+  const extractSessionIdFromUrl = (url) => {
+    try {
+      const match = url.match(/\/meeting\/(.+)$/);
+      return match ? match[1] : null;
+    } catch (error) {
+      console.error("Error extracting session ID from URL:", error);
+      return null;
+    }
+  };
 
   return (
     <div>
@@ -72,7 +84,11 @@ function App() {
         apiKey={apiKey}
         sessionId={sessionId}
         token={token}
-        username={username}
+        isHost={isHost}
+        meetingUrl={meetingUrl}
+        createMeeting={createMeeting}
+        generateToken={generateToken}
+        extractSessionIdFromUrl={extractSessionIdFromUrl}
       />
     </div>
   );
