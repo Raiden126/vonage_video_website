@@ -67,7 +67,7 @@ const MeetingRoomPage = ({
               // Ensure proper styling
               subscriberElement.style.width = "100%";
               subscriberElement.style.height = "100%";
-              subscriberElement.style.objectFit = "cover";
+              subscriberElement.style.objectFit = "contain";
             }
           } catch (error) {
             console.error("Error positioning subscriber video:", error);
@@ -166,10 +166,14 @@ const MeetingRoomPage = ({
             {linkCopied ? "Copied!" : "Copy Link"}
           </button>
         </div>
-        <div className="text-white text-sm">
+        {/* Show participants count */}
+        <div
+          className="text-white text-sm pointer-events-none select-none"
+          aria-disabled>
           {participants.length} participant
           {participants.length !== 1 ? "s" : ""}
         </div>
+
       </div>
 
       {/* Main Content */}
@@ -266,13 +270,12 @@ const MeetingRoomPage = ({
             </div>
           ) : (
             <div
-              className={`grid ${
-                participants.length === 1
-                  ? "grid-cols-1"
-                  : participants.length <= 4
+              className={`grid ${participants.length === 1
+                ? "grid-cols-1"
+                : participants.length <= 4
                   ? "grid-cols-2"
                   : "grid-cols-3"
-              } gap-4 h-full`}
+                } gap-4 h-full`}
             >
               {/* Local Video */}
               <div className="bg-gray-800 rounded-lg relative overflow-hidden">
@@ -351,25 +354,28 @@ const MeetingRoomPage = ({
 
         {/* Chat Panel */}
         {meetingState.chat && (
-          <div className="w-[21rem] bg-gray-800 border-l border-gray-700 flex flex-col">
-            <div className="p-2 border-b border-gray-700">
-              <h3 className="text-white font-semibold">Chat</h3>
+          <div className="w-[20rem] bg-gray-900 border-l border-gray-700 flex flex-col shadow-lg">
+            <div className="p-3 border-b border-gray-700 bg-gray-800">
+              <h3 className="text-white text-lg font-semibold tracking-tight">Chat</h3>
             </div>
-            <div className="flex-1 p-4 overflow-y-auto">
+            <div className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
               {chatMessages.map((message) => (
-                <div key={message.id} className="mb-3">
-                  <div className="text-xs text-gray-400 mb-1">
-                    {message.sender} •{" "}
-                    {new Date(message.timestamp).toLocaleTimeString()}
+                <div key={message.id} className="mb-4 group">
+                  <div className="text-xs text-gray-400 mb-1 flex items-center gap-2">
+                    <span className="font-medium text-gray-300">{message.sender}</span>
+                    <span>•</span>
+                    <span>{message.timestamp
+                      ? new Date(message.timestamp).toLocaleTimeString()
+                      : 'Unknown time'}</span>
                   </div>
-                  <div className="text-white break-words whitespace-pre-wrap">
+                  <div className="text-white text-sm bg-gray-700/50 rounded-lg p-2 break-words whitespace-pre-wrap transition-all group-hover:bg-gray-700/70">
                     {message.message}
                   </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
-            <div className="p-1 border-t border-gray-700">
+            <div className="p-2 border-t border-gray-700 bg-gray-800">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -377,11 +383,11 @@ const MeetingRoomPage = ({
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && sendChatMessage()}
                   placeholder="Type a message..."
-                  className="flex-1 px-2 py-1 bg-gray-700 text-white rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-200 placeholder-gray-400"
                 />
                 <button
                   onClick={sendChatMessage}
-                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition duration-200"
+                  className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-all duration-200 active:scale-95"
                 >
                   Send
                 </button>
@@ -392,35 +398,34 @@ const MeetingRoomPage = ({
 
         {/* Participants Panel */}
         {meetingState.participants && (
-          <div className="w-[18rem] bg-gray-800 border-l border-gray-700 flex flex-col">
-            <div className="p-2 border-b border-gray-700">
-              <h3 className="text-white font-semibold">
+          <div className="w-[20rem] bg-gray-900 border-l border-gray-700 flex flex-col shadow-lg">
+            <div className="p-3 border-b border-gray-700 bg-gray-800">
+              <h3 className="text-white text-lg font-semibold tracking-tight">
                 Participants ({participants.length})
               </h3>
             </div>
-            <div className="flex-1 p-2 overflow-y-auto">
+            <div className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
               {participants.map((participant) => (
                 <div
                   key={participant.id}
-                  className="flex items-center gap-3 mb-3"
+                  className="flex items-center gap-3 mb-4 p-2 rounded-lg hover:bg-gray-700/50 transition-all duration-200"
                 >
-                  <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-white">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-md">
+                    <span className="text-base font-semibold text-white">
                       {getInitials(participant.name)}
                     </span>
                   </div>
                   <div className="flex-1">
-                    <div className="text-white text-sm">
-                      {participant.name} {participant.isLocal && "(You)"}{" "}
-                      {isHost && "(Host)"}
+                    <div className="text-white text-sm font-medium">
+                      {participant.name} {participant.isLocal && "(You)"}
                     </div>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-2">
                     {!participant.audio && (
-                      <iconComponents.micOff className="w-4 h-4 text-red-400" />
+                      <iconComponents.micOff className="w-5 h-5 text-red-400" />
                     )}
                     {!participant.video && (
-                      <iconComponents.videoOff className="w-4 h-4 text-red-400" />
+                      <iconComponents.videoOff className="w-5 h-5 text-red-400" />
                     )}
                   </div>
                 </div>
@@ -471,11 +476,11 @@ const MeetingRoomPage = ({
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={toggleVideo}
-            className={`p-3 rounded-full ${
-              meetingState.video
-                ? "bg-gray-700 hover:bg-gray-600"
-                : "bg-red-600 hover:bg-red-700"
-            } text-white transition duration-200`}
+            title={`${"Turn " + (meetingState.video ? "off" : "on")} video`}
+            className={`p-3 rounded-full ${meetingState.video
+              ? "bg-gray-700 hover:bg-gray-600"
+              : "bg-red-600 hover:bg-red-700"
+              } text-white transition duration-200`}
           >
             {meetingState.video ? (
               <iconComponents.video className="w-6 h-6" />
@@ -486,11 +491,11 @@ const MeetingRoomPage = ({
 
           <button
             onClick={toggleAudio}
-            className={`p-3 rounded-full ${
-              meetingState.audio
-                ? "bg-gray-700 hover:bg-gray-600"
-                : "bg-red-600 hover:bg-red-700"
-            } text-white transition duration-200`}
+            title={`${"Turn " + (meetingState.audio ? "off" : "on")} audio`}
+            className={`p-3 rounded-full ${meetingState.audio
+              ? "bg-gray-700 hover:bg-gray-600"
+              : "bg-red-600 hover:bg-red-700"
+              } text-white transition duration-200`}
           >
             {meetingState.audio ? (
               <iconComponents.mic className="w-6 h-6" />
@@ -501,17 +506,18 @@ const MeetingRoomPage = ({
 
           <button
             onClick={toggleScreenShare}
-            className={`p-3 rounded-full ${
-              meetingState.screenShare
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "bg-gray-700 hover:bg-gray-600"
-            } text-white transition duration-200`}
+            title="Share screen"
+            className={`p-3 rounded-full ${meetingState.screenShare
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-gray-700 hover:bg-gray-600"
+              } text-white transition duration-200`}
           >
             <iconComponents.screenShare className="w-6 h-6" />
           </button>
 
           <button
             onClick={handleScreenshot}
+            title="Take screenshot"
             className="p-3 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition duration-200"
           >
             <iconComponents.screenShot className="w-6 h-6" />
@@ -519,28 +525,29 @@ const MeetingRoomPage = ({
 
           <button
             onClick={toggleChat}
-            className={`p-3 rounded-full ${
-              meetingState.chat
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "bg-gray-700 hover:bg-gray-600"
-            } text-white transition duration-200`}
+            title="Chat"
+            className={`p-3 rounded-full ${meetingState.chat
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-gray-700 hover:bg-gray-600"
+              } text-white transition duration-200`}
           >
             <iconComponents.chat className="w-6 h-6" />
           </button>
 
           <button
             onClick={toggleParticipants}
-            className={`p-3 rounded-full ${
-              meetingState.participants
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "bg-gray-700 hover:bg-gray-600"
-            } text-white transition duration-200`}
+            title="Participants"
+            className={`p-3 rounded-full ${meetingState.participants
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-gray-700 hover:bg-gray-600"
+              } text-white transition duration-200`}
           >
             <iconComponents.users className="w-6 h-6" />
           </button>
 
           <button
             ref={reactionButtonRef}
+            title="Reaction"
             onClick={() => setShowReactionPicker(!showReactionPicker)}
             className="p-3 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition duration-200"
           >
@@ -548,6 +555,7 @@ const MeetingRoomPage = ({
           </button>
 
           <button
+            title="Leave meeting"
             onClick={handleLeaveMeetingClick}
             className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition duration-200 ml-4"
           >

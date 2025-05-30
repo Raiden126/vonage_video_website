@@ -48,6 +48,8 @@ const VonageVideoMeeting = ({
   icons = {},
   theme = {},
   styles = {},
+  landingPageStyle = {},
+  preJoinPageStyle = {}
 }) => {
   const [currentView, setCurrentView] = useState("landing");
   const [userName, setUserName] = useState(username || "");
@@ -880,7 +882,7 @@ const VonageVideoMeeting = ({
               try {
                 const userData = JSON.parse(conn.data);
                 name = userData.name || name;
-              } catch {}
+              } catch { }
             }
             return {
               id: conn.connectionId,
@@ -1042,7 +1044,7 @@ const VonageVideoMeeting = ({
               try {
                 const userData = JSON.parse(conn.data);
                 name = userData.name || name;
-              } catch {}
+              } catch { }
             }
             return {
               id: conn.connectionId,
@@ -1294,11 +1296,11 @@ const VonageVideoMeeting = ({
   }, [screenShareState.isSharing, meetingState, userName, selectedDevices, OT]);
 
   const toggleChat = () => {
-    setMeetingState((prev) => ({ ...prev, chat: !prev.chat }));
+    setMeetingState((prev) => ({ ...prev, chat: !prev.chat, participants: false }));
   };
 
   const toggleParticipants = () => {
-    setMeetingState((prev) => ({ ...prev, participants: !prev.participants }));
+    setMeetingState((prev) => ({ ...prev, participants: !prev.participants, chat: false }));
   };
 
   const takeScreenshot = useCallback(async (options = {}) => {
@@ -1568,6 +1570,7 @@ const VonageVideoMeeting = ({
         extractSessionIdFromUrl={extractSessionIdFromUrl}
         setSessionId={setSessionId}
         setIsHost={setIsHost}
+        customStyle={landingPageStyle}
       />
     );
   }
@@ -1593,6 +1596,7 @@ const VonageVideoMeeting = ({
         meetingLink={meetingLink}
         copyMeetingLink={copyMeetingLink}
         linkCopied={linkCopied}
+        customStyle={preJoinPageStyle}
       />
     );
   }

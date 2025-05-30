@@ -7,6 +7,8 @@ function App() {
   const [token, setToken] = useState("");
   const [isHost, setIsHost] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState("");
+  const landingPageStyling = {};
+  const preJoinPageStyling = {};
 
   const createMeeting = async (userData) => {
     try {
@@ -89,6 +91,8 @@ function App() {
         createMeeting={createMeeting}
         generateToken={generateToken}
         extractSessionIdFromUrl={extractSessionIdFromUrl}
+        landingPageStyle={landingPageStyling}
+        preJoinPageStyle={preJoinPageStyling}
       />
     </div>
   );
