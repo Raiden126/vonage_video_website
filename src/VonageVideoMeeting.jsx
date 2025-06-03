@@ -1832,11 +1832,9 @@ const VonageVideoMeeting = ({
   }, []);
 
   const getInitials = (name) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+    if (!name) return "";
+    const words = name.trim().split(/\s+/).slice(0, 2);
+    return words.map((n) => n[0]).join("").toUpperCase();
   };
 
   // Landing Page

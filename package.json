@@ -1,6 +1,7 @@
 {
-  "name": "react_npm_video_vonage",
+  "name": "vonage-video-meeting-widget",
   "version": "0.1.0",
+  "description": "Cross-platform video meeting widget using Vonage Video API with Shadow DOM",
   "private": true,
   "dependencies": {
     "@testing-library/dom": "^10.4.0",
