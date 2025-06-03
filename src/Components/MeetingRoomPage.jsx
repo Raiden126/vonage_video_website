@@ -18,6 +18,8 @@ const MeetingRoomPage = ({
   takeScreenshot,
   toggleChat,
   toggleVideo,
+  hasCamera,
+  hasMicrophone,
   toggleScreenShare,
   toggleParticipants,
   showReactionPicker,
@@ -33,6 +35,9 @@ const MeetingRoomPage = ({
   showLeaveMeetingModal,
   setShowLeaveMeetingModal,
   transferHost,
+  screenShotWithChat,
+  chatAttachments,
+  setChatAttachments,
 }) => {
   const subscriberRefs = useRef(new Map());
   const messagesEndRef = useRef(null);
@@ -40,34 +45,66 @@ const MeetingRoomPage = ({
     screenShareState.isSharing || screenShareState.isReceiving;
   const screenShareParticipant = participants.find((p) => p.isScreenShare);
   const regularParticipants = participants.filter((p) => !p.isScreenShare);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [selectedScreenshot, setSelectedScreenshot] = useState(null);
+  const [showDeviceError, setShowDeviceError] = useState(null);
+
+  useEffect(() => {
+    console.log("MeetingState changed: ", meetingState);
+    console.log("Participants: ", participants);
+  })
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
   useEffect(() => {
-    const remoteParticipants = participants.filter((p) => !p.isLocal);
+    const allParticipants = participants.filter((p) => !p.isLocal);
 
-    remoteParticipants.forEach((participant) => {
+    allParticipants.forEach((participant) => {
       if (participant.subscriber) {
         const videoElement = subscriberRefs.current.get(participant.id);
-        if (videoElement && !videoElement.hasChildNodes()) {
+        
+        if (videoElement) {
           try {
-            // Move the subscriber's video element to the correct container
-            const subscriberElement = participant.subscriber.element;
-            if (
-              subscriberElement &&
-              subscriberElement.parentNode !== videoElement
-            ) {
+            // For screen share participants, use the stored container
+            let subscriberElement;
+            
+            if (participant.isScreenShare && participant.subscriberContainer) {
+              subscriberElement = participant.subscriberContainer;
+            } else {
+              subscriberElement = participant.subscriber.element;
+            }
+            
+            if (subscriberElement && subscriberElement.parentNode !== videoElement) {
               // Clear any existing content
               videoElement.innerHTML = "";
-              // Append the subscriber's video element
+              
+              // Append the subscriber's element
               videoElement.appendChild(subscriberElement);
 
               // Ensure proper styling
               subscriberElement.style.width = "100%";
               subscriberElement.style.height = "100%";
-              subscriberElement.style.objectFit = "contain";
+              subscriberElement.style.position = "absolute";
+              subscriberElement.style.top = "0";
+              subscriberElement.style.left = "0";
+              
+              if (participant.isScreenShare) {
+                subscriberElement.style.objectFit = "contain";
+              } else {
+                subscriberElement.style.objectFit = "cover";
+              }
+              
+              // For screen share, also style any video elements inside
+              if (participant.isScreenShare) {
+                const videoElements = subscriberElement.querySelectorAll('video');
+                videoElements.forEach(video => {
+                  video.style.width = "100%";
+                  video.style.height = "100%";
+                  video.style.objectFit = "contain";
+                });
+              }
             }
           } catch (error) {
             console.error("Error positioning subscriber video:", error);
@@ -81,25 +118,10 @@ const MeetingRoomPage = ({
     if (publisherElementRef.current) {
       const publisherContainer = publisherElementRef.current;
 
-      //   console.log("Publisher container children:", publisherContainer.children);
-      //   console.log(
-      //     "Publisher container innerHTML:",
-      //     publisherContainer.innerHTML
-      //   );
-
       const videoElement = publisherContainer.querySelector("video");
       const divElements = publisherContainer.querySelectorAll("div");
 
-      //   console.log("Found video element:", videoElement);
-      //   console.log("Found div elements:", divElements);
-
       if (videoElement) {
-        // console.log("Video element src:", videoElement.src);
-        // console.log("Video element srcObject:", videoElement.srcObject);
-        // console.log("Video element videoWidth:", videoElement.videoWidth);
-        // console.log("Video element videoHeight:", videoElement.videoHeight);
-        // console.log("Video element readyState:", videoElement.readyState);
-
         videoElement.style.width = "100%";
         videoElement.style.height = "100%";
         videoElement.style.objectFit = "contain";
@@ -139,10 +161,41 @@ const MeetingRoomPage = ({
 
   const handleScreenshot = async () => {
     try {
-      await takeScreenshot();
+      const screenshotData = await takeScreenshot(); // This already creates the screenshot
+      
+      if (screenshotData && (screenshotData.url || screenshotData.screenshots)) {
+        const screenshots = screenshotData.screenshots || [screenshotData];
+        
+        screenshots.forEach(screenshot => {
+          const newAttachment = {
+            id: screenshot.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            filename: screenshot.filename || `meeting-screenshot-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
+            url: screenshot.url || screenshot,
+            type: 'screenshot',
+            timestamp: screenshot.timestamp || new Date().toISOString()
+          };
+          
+          setChatAttachments(prev => {
+            const exists = prev.some(att => att.filename === newAttachment.filename);
+            if (exists) return prev;
+            return [...prev, newAttachment];
+          });
+          
+          setChatInput(prev => {
+            const attachmentText = `📸 Screenshot attached: ${newAttachment.filename}`;
+            if (prev.includes(attachmentText)) return prev;
+            return prev + (prev ? '\n' : '') + attachmentText;
+          });
+        });
+      }
     } catch (error) {
       console.error("Screenshot failed:", error);
     }
+  };
+
+  const handleMaximizeScreenshot = (screenshot) => {
+    setSelectedScreenshot(screenshot);
+    setShowScreenshotModal(true);
   };
 
   return (
@@ -169,15 +222,15 @@ const MeetingRoomPage = ({
         {/* Show participants count */}
         <div
           className="text-white text-sm pointer-events-none select-none"
-          aria-disabled>
+          aria-disabled
+        >
           {participants.length} participant
           {participants.length !== 1 ? "s" : ""}
         </div>
-
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex h-screen">
+      <div className="flex-1 flex h-screen overflow-hidden">
         <div className="flex-1 p-4">
           {hasScreenShare ? (
             <div className="flex flex-col h-full gap-4">
@@ -207,9 +260,7 @@ const MeetingRoomPage = ({
                       {userName} - Screen Share (You)
                     </div>
                   </>
-                ) : (
-                  <h1>Screenshare</h1>
-                )}
+                ) : (<h1>Screen Share</h1>)}
               </div>
 
               <div
@@ -270,12 +321,13 @@ const MeetingRoomPage = ({
             </div>
           ) : (
             <div
-              className={`grid ${participants.length === 1
-                ? "grid-cols-1"
-                : participants.length <= 4
+              className={`grid ${
+                participants.length === 1
+                  ? "grid-cols-1"
+                  : participants.length <= 4
                   ? "grid-cols-2"
                   : "grid-cols-3"
-                } gap-4 h-full`}
+              } gap-4 h-full`}
             >
               {/* Local Video */}
               <div className="bg-gray-800 rounded-lg relative overflow-hidden">
@@ -354,28 +406,153 @@ const MeetingRoomPage = ({
 
         {/* Chat Panel */}
         {meetingState.chat && (
-          <div className="w-[20rem] bg-gray-900 border-l border-gray-700 flex flex-col shadow-lg">
-            <div className="p-3 border-b border-gray-700 bg-gray-800">
-              <h3 className="text-white text-lg font-semibold tracking-tight">Chat</h3>
+          <div className="bg-gray-900 border-l border-gray-700 flex flex-col shadow-lg w-[360px]">
+            <div className="p-3 border-b border-gray-700 bg-gray-800 flex justify-between">
+              <h3 className="text-white text-lg font-semibold tracking-tight">
+                Chat
+              </h3>
+              <button
+                onClick={toggleChat}
+                className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+                title="Close Chat"
+              >
+                <iconComponents.x className="w-5 h-5" />
+              </button>
             </div>
             <div className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
               {chatMessages.map((message) => (
                 <div key={message.id} className="mb-4 group">
                   <div className="text-xs text-gray-400 mb-1 flex items-center gap-2">
-                    <span className="font-medium text-gray-300">{message.sender}</span>
+                    <span className="font-medium text-gray-300">
+                      {message.sender}
+                    </span>
                     <span>•</span>
-                    <span>{message.timestamp
-                      ? new Date(message.timestamp).toLocaleTimeString()
-                      : 'Unknown time'}</span>
+                    <span>
+                      {message.timestamp
+                        ? new Date(message.timestamp).toLocaleTimeString()
+                        : "Unknown time"}
+                    </span>
                   </div>
                   <div className="text-white text-sm bg-gray-700/50 rounded-lg p-2 break-words whitespace-pre-wrap transition-all group-hover:bg-gray-700/70">
                     {message.message}
+                    {message.type === "screenshot" && message.screenshots && (
+                      <div className="mt-2 space-y-2">
+                        {message.screenshots.map((screenshot, index) => (
+                          <div
+                            key={`${screenshot.id || message.id}-${index}`}
+                            className="bg-gray-600/50 rounded p-2 text-xs relative group"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span>📸</span>
+                                <span>{screenshot.filename}</span>
+                              </div>
+                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    const link = document.createElement("a");
+                                    link.href = screenshot.url;
+                                    link.download = screenshot.filename;
+                                    link.click();
+                                  }}
+                                  className="text-blue-400 hover:text-blue-300 p-1"
+                                  title="Download"
+                                >
+                                  ↓
+                                </button>
+                                <button
+                                  onClick={() => handleMaximizeScreenshot(screenshot)}
+                                  className="text-green-400 hover:text-green-300 p-1"
+                                  title="View Full Size"
+                                >
+                                  ⛶
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-gray-400 text-xs mt-1">
+                              Screenshot shared at{" "}
+                              {new Date(screenshot.timestamp).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
             <div className="p-2 border-t border-gray-700 bg-gray-800">
+              {chatAttachments.length > 0 && (
+                <div className="mb-2 p-2 bg-gray-700/50 rounded border-l-2 border-blue-500">
+                  <div className="text-xs text-gray-300 mb-1">Attachments:</div>
+                  {chatAttachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="bg-gray-600/50 rounded px-2 py-1 mb-2"
+                    >
+                      {/* Screenshot preview */}
+                      {attachment.type === 'screenshot' && (
+                        <div className="mb-2">
+                          <img
+                            src={attachment.url}
+                            alt={attachment.filename}
+                            className="w-full max-w-32 h-20 object-cover rounded cursor-pointer"
+                            onClick={() => handleMaximizeScreenshot(attachment)}
+                          />
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span className="flex items-center gap-1">
+                          <span>📸</span>
+                          <span>{attachment.filename}</span>
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              const link = document.createElement("a");
+                              link.href = attachment.url;
+                              link.download = attachment.filename;
+                              link.click();
+                            }}
+                            className="text-blue-400 hover:text-blue-300 px-1"
+                            title="Download"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => handleMaximizeScreenshot(attachment)}
+                            className="text-green-400 hover:text-green-300 px-1"
+                            title="View Full Size"
+                          >
+                            ⛶
+                          </button>
+                          <button
+                            onClick={() => {
+                              setChatAttachments((prev) =>
+                                prev.filter((a) => a.id !== attachment.id)
+                              );
+                              setChatInput((prev) =>
+                                prev
+                                  .replace(
+                                    `📸 Screenshot attached: ${attachment.filename}`,
+                                    ""
+                                  )
+                                  .trim()
+                              );
+                            }}
+                            className="text-red-400 hover:text-red-300 px-1"
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -393,16 +570,64 @@ const MeetingRoomPage = ({
                 </button>
               </div>
             </div>
+            {showScreenshotModal && selectedScreenshot && (
+              <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                <div className="relative max-w-4xl max-h-4xl w-full h-full p-4">
+                  <div className="bg-gray-800 rounded-lg p-4 h-full flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-white text-lg font-semibold">
+                        {selectedScreenshot.filename}
+                      </h3>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const link = document.createElement("a");
+                            link.href = selectedScreenshot.url;
+                            link.download = selectedScreenshot.filename;
+                            link.click();
+                          }}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+                          title="Download"
+                        >
+                          Download
+                        </button>
+                        <button
+                          onClick={() => setShowScreenshotModal(false)}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+                          title="Close"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center bg-gray-900 rounded">
+                      <img
+                        src={selectedScreenshot.url}
+                        alt={selectedScreenshot.filename}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Participants Panel */}
         {meetingState.participants && (
           <div className="w-[20rem] bg-gray-900 border-l border-gray-700 flex flex-col shadow-lg">
-            <div className="p-3 border-b border-gray-700 bg-gray-800">
+            <div className="p-3 border-b border-gray-700 bg-gray-800 flex justify-between">
               <h3 className="text-white text-lg font-semibold tracking-tight">
                 Participants ({participants.length})
               </h3>
+              <button
+                onClick={toggleParticipants}
+                className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+                title="Close Participants"
+              >
+                <iconComponents.x className="w-5 h-5" />
+              </button>
             </div>
             <div className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
               {participants.map((participant) => (
@@ -475,12 +700,23 @@ const MeetingRoomPage = ({
       <div className="bg-gray-800 p-4">
         <div className="flex items-center justify-center gap-4">
           <button
-            onClick={toggleVideo}
+            onClick={() => {
+              if (!hasCamera) {
+                setShowDeviceError('Camera is not connected');
+                setTimeout(() => setShowDeviceError(null), 3000);
+                return;
+              }
+              toggleVideo();
+            }}
             title={`${"Turn " + (meetingState.video ? "off" : "on")} video`}
-            className={`p-3 rounded-full ${meetingState.video
-              ? "bg-gray-700 hover:bg-gray-600"
-              : "bg-red-600 hover:bg-red-700"
-              } text-white transition duration-200`}
+            className={`p-3 rounded-full ${
+              !hasCamera 
+                ? "bg-gray-500 cursor-not-allowed opacity-50"
+                : meetingState.video
+                ? "bg-gray-700 hover:bg-gray-600"
+                : "bg-red-600 hover:bg-red-700"
+            } text-white transition duration-200`}
+            disabled={!hasCamera}
           >
             {meetingState.video ? (
               <iconComponents.video className="w-6 h-6" />
@@ -490,12 +726,23 @@ const MeetingRoomPage = ({
           </button>
 
           <button
-            onClick={toggleAudio}
+            onClick={() => {
+              if (!hasMicrophone) {
+                setShowDeviceError('Microphone is not connected');
+                setTimeout(() => setShowDeviceError(null), 3000);
+                return;
+              }
+              toggleAudio();
+            }}
             title={`${"Turn " + (meetingState.audio ? "off" : "on")} audio`}
-            className={`p-3 rounded-full ${meetingState.audio
-              ? "bg-gray-700 hover:bg-gray-600"
-              : "bg-red-600 hover:bg-red-700"
-              } text-white transition duration-200`}
+            className={`p-3 rounded-full ${
+              !hasMicrophone 
+                ? "bg-gray-500 cursor-not-allowed opacity-50"
+                : meetingState.audio
+                ? "bg-gray-700 hover:bg-gray-600"
+                : "bg-red-600 hover:bg-red-700"
+            } text-white transition duration-200`}
+            disabled={!hasMicrophone}
           >
             {meetingState.audio ? (
               <iconComponents.mic className="w-6 h-6" />
@@ -507,10 +754,11 @@ const MeetingRoomPage = ({
           <button
             onClick={toggleScreenShare}
             title="Share screen"
-            className={`p-3 rounded-full ${meetingState.screenShare
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-gray-700 hover:bg-gray-600"
-              } text-white transition duration-200`}
+            className={`p-3 rounded-full ${
+              meetingState.screenShare
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-700 hover:bg-gray-600"
+            } text-white transition duration-200`}
           >
             <iconComponents.screenShare className="w-6 h-6" />
           </button>
@@ -526,10 +774,11 @@ const MeetingRoomPage = ({
           <button
             onClick={toggleChat}
             title="Chat"
-            className={`p-3 rounded-full ${meetingState.chat
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-gray-700 hover:bg-gray-600"
-              } text-white transition duration-200`}
+            className={`p-3 rounded-full ${
+              meetingState.chat
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-700 hover:bg-gray-600"
+            } text-white transition duration-200`}
           >
             <iconComponents.chat className="w-6 h-6" />
           </button>
@@ -537,10 +786,11 @@ const MeetingRoomPage = ({
           <button
             onClick={toggleParticipants}
             title="Participants"
-            className={`p-3 rounded-full ${meetingState.participants
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-gray-700 hover:bg-gray-600"
-              } text-white transition duration-200`}
+            className={`p-3 rounded-full ${
+              meetingState.participants
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-700 hover:bg-gray-600"
+            } text-white transition duration-200`}
           >
             <iconComponents.users className="w-6 h-6" />
           </button>
@@ -563,6 +813,14 @@ const MeetingRoomPage = ({
           </button>
         </div>
       </div>
+      {showDeviceError && (
+        <div className="fixed top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-pulse">
+          <div className="flex items-center gap-2">
+            <iconComponents.alertCircle className="w-5 h-5" />
+            <span>{showDeviceError}</span>
+          </div>
+        </div>
+      )}
       <LeaveMeetingModal
         isOpen={showLeaveMeetingModal}
         onClose={() => setShowLeaveMeetingModal(false)}

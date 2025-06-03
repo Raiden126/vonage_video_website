@@ -26,6 +26,11 @@ const LandingPage = ({
       });
 
       setIsHost(true);
+      
+      if (meetingData.meetingUrl) {
+        window.history.pushState({}, '', meetingData.meetingUrl);
+      }
+      
       setCurrentView("prejoin");
     } catch (error) {
       console.error("Error creating meeting:", error);
@@ -50,6 +55,9 @@ const LandingPage = ({
     setSessionId(extractedSessionId);
     setIsHost(false);
     setError("");
+    
+    window.history.pushState({}, '', meetingLink);
+    
     setCurrentView("prejoin");
   };
 
@@ -120,7 +128,7 @@ const LandingPage = ({
             <input
               type="text"
               placeholder="Enter meeting link"
-              value={meetingLink}
+              // value={meetingLink}
               onChange={(e) => setMeetingLink(e.target.value)}
               className={styles.input}
             />

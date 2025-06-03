@@ -18,9 +18,12 @@ const LeaveMeetingModal = ({
 
   const handleConfirm = () => {
     if (isHost && hasOtherParticipants && selectedNewHost) {
-      onTransferHost(selectedNewHost);
+      const selectedParticipant = otherParticipants.find(p => p.id === selectedNewHost);
+      const connectionId = selectedParticipant?.connectionId || selectedParticipant?.subscriber?.stream?.connection?.connectionId;
+      onConfirm(connectionId || selectedNewHost);
+    } else {
+      onConfirm(null);
     }
-    onConfirm();
   };
 
   const canLeave = !isHost || !hasOtherParticipants || selectedNewHost;

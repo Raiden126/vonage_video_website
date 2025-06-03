@@ -79,6 +79,8 @@ function App() {
       return null;
     }
   };
+  let icons = {};
+  let theme = "";
 
   return (
     <div>
@@ -93,6 +95,9 @@ function App() {
         extractSessionIdFromUrl={extractSessionIdFromUrl}
         landingPageStyle={landingPageStyling}
         preJoinPageStyle={preJoinPageStyling}
+        screenShotWithChat={true}
+        icons={icons}
+        theme={theme}
       />
     </div>
   );

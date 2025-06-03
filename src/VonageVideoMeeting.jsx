@@ -14,6 +14,10 @@ import {
   PhoneOff,
   Copy,
   Check,
+  Minimize2,
+  Maximize2,
+  CircleAlert,
+  X
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import LandingPage from "./Components/LandingPage";
@@ -45,11 +49,11 @@ const VonageVideoMeeting = ({
   createMeeting,
   generateToken,
   extractSessionIdFromUrl,
+  screenShotWithChat,
   icons = {},
   theme = {},
-  styles = {},
   landingPageStyle = {},
-  preJoinPageStyle = {}
+  preJoinPageStyle = {},
 }) => {
   const [currentView, setCurrentView] = useState("landing");
   const [userName, setUserName] = useState(username || "");
@@ -76,6 +80,7 @@ const VonageVideoMeeting = ({
     participants: false,
     reactions: false,
   });
+  const [chatAttachments, setChatAttachments] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
@@ -118,6 +123,10 @@ const VonageVideoMeeting = ({
     settings: Settings,
     copy: Copy,
     check: Check,
+    minimize: Minimize2,
+    maximize: Maximize2,
+    alertCircle: CircleAlert,
+    x: X
   };
 
   const iconComponents = { ...defaultIcons, ...icons };
@@ -385,6 +394,59 @@ const VonageVideoMeeting = ({
     }
   }, [userName, sessionRef.current]);
 
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    const urlParams = new URLSearchParams(window.location.search);
+
+    if (currentPath.includes("/meeting/")) {
+      const extractedSessionId = extractSessionIdFromUrl(window.location.href);
+      if (extractedSessionId) {
+        setSessionId(extractedSessionId);
+
+        const urlToken = urlParams.get("token");
+        const urlUserName = urlParams.get("user");
+        const urlIsHost = urlParams.get("host") === "true";
+
+        if (urlToken && urlUserName) {
+          setToken(urlToken);
+          setUserName(urlUserName);
+          setIsHost(urlIsHost);
+          const urlApiKey = urlParams.get("apiKey");
+          if (urlApiKey) {
+            setApiKey(urlApiKey);
+          }
+          setCurrentView("meeting");
+        } else {
+          setCurrentView("prejoin");
+          setMeetingLink(window.location.href);
+        }
+      } else {
+        window.history.replaceState({}, "", "/");
+        setCurrentView("landing");
+      }
+    } else {
+      setCurrentView("landing");
+    }
+  }, []);
+
+  const updateUrlForMeeting = useCallback((meetingUrl) => {
+    if (meetingUrl) {
+      window.history.pushState({}, "", meetingUrl);
+      setMeetingLink(meetingUrl);
+    }
+  }, []);
+
+  const updateUrlForJoining = useCallback(
+    (sessionId, token, userName, isHost) => {
+      const currentPath = window.location.pathname;
+      const newUrl = `${currentPath}?token=${encodeURIComponent(
+        token
+      )}&user=${encodeURIComponent(userName)}&host=${isHost}`;
+      window.history.pushState({}, "", newUrl);
+    },
+    []
+  );
+
   // Join meeting function
   const joinMeeting = useCallback(async () => {
     if (!userName.trim()) {
@@ -477,6 +539,7 @@ const VonageVideoMeeting = ({
       session.on("streamCreated", (event) => {
         console.log("Stream created:", event.stream);
         const stream = event.stream;
+
         // Validate stream
         if (!stream || !stream.streamId || stream.destroyed) {
           console.warn("Invalid or destroyed stream received:", stream);
@@ -497,16 +560,29 @@ const VonageVideoMeeting = ({
           return;
         }
 
-        const isScreenShare = stream.name && stream.name.includes("(Screen)");
+        // Enhanced screen share detection
+        const isScreenShare =
+          (stream.name && stream.name.includes("(Screen)")) ||
+          stream.videoType === "screen" ||
+          (stream.connection &&
+            stream.connection.data &&
+            JSON.parse(stream.connection.data || "{}").isScreenShare);
 
         if (isScreenShare) {
-          const tempContainer = document.createElement("div");
-          tempContainer.style.width = "100%";
-          tempContainer.style.height = "100%";
+          console.log("Screen share stream detected");
+
+          // Create a container div that will be moved to the proper location
+          const subscriberContainer = document.createElement("div");
+          subscriberContainer.style.width = "100%";
+          subscriberContainer.style.height = "100%";
+          subscriberContainer.style.position = "absolute";
+          subscriberContainer.style.top = "0";
+          subscriberContainer.style.left = "0";
+          subscriberContainer.id = `screen-share-${stream.streamId}`;
 
           const subscriber = session.subscribe(
             stream,
-            tempContainer,
+            subscriberContainer,
             {
               insertMode: "append",
               width: "100%",
@@ -514,6 +590,9 @@ const VonageVideoMeeting = ({
               subscribeToAudio: true,
               subscribeToVideo: true,
               fitMode: "contain",
+              style: {
+                buttonDisplayMode: "off",
+              },
             },
             (error) => {
               if (error) {
@@ -521,13 +600,25 @@ const VonageVideoMeeting = ({
                 return;
               }
 
+              console.log("Successfully subscribed to screen share");
+
+              // Store the subscriber with a special key for screen share
+              subscribersRef.current.set(
+                `screenshare-${stream.streamId}`,
+                subscriber
+              );
+
+              // Update screen share state
               setScreenShareState((prev) => ({
                 ...prev,
                 isReceiving: true,
-                sharedBy: stream.name.replace(" (Screen)", "") || "Remote User",
+                sharedBy: stream.name
+                  ? stream.name.replace(" (Screen)", "")
+                  : "Remote User",
                 screenShareStream: subscriber,
               }));
 
+              // Add screen share participant
               setParticipants((prev) => {
                 const existing = prev.find((p) => p.id === stream.streamId);
                 if (existing) return prev;
@@ -536,18 +627,22 @@ const VonageVideoMeeting = ({
                   ...prev,
                   {
                     id: stream.streamId,
-                    name: stream.name.replace(" (Screen)", "") || "Remote User",
+                    name: stream.name
+                      ? stream.name.replace(" (Screen)", "")
+                      : "Remote User",
                     isLocal: false,
                     video: true,
                     audio: stream.hasAudio,
-                    subscriber,
+                    subscriber: subscriber,
                     isScreenShare: true,
+                    subscriberContainer: subscriberContainer, // Store container reference
                   },
                 ];
               });
             }
           );
         } else {
+          // Regular video stream handling (existing logic)
           setTimeout(() => {
             if (stream.destroyed) {
               console.warn("Stream was destroyed during initialization delay");
@@ -556,7 +651,7 @@ const VonageVideoMeeting = ({
 
             try {
               console.log(
-                "Attempting to subscribe to stream:",
+                "Attempting to subscribe to regular stream:",
                 stream.streamId
               );
 
@@ -592,15 +687,10 @@ const VonageVideoMeeting = ({
                   subscribersRef.current.set(stream.streamId, subscriber);
 
                   setParticipants((prev) => {
-                    console.log("Current participants before update:", prev);
-
                     const existingStreamIndex = prev.findIndex(
                       (p) => p.id === stream.streamId
                     );
                     if (existingStreamIndex !== -1) {
-                      console.log(
-                        "Updating existing participant with stream ID"
-                      );
                       const updated = [...prev];
                       updated[existingStreamIndex] = {
                         ...updated[existingStreamIndex],
@@ -617,13 +707,10 @@ const VonageVideoMeeting = ({
                     );
 
                     if (existingConnectionIndex !== -1) {
-                      console.log(
-                        "Updating existing participant from connection to stream"
-                      );
                       const updated = [...prev];
                       updated[existingConnectionIndex] = {
                         ...updated[existingConnectionIndex],
-                        id: stream.streamId, // Update to use stream ID
+                        id: stream.streamId,
                         name:
                           stream.name || updated[existingConnectionIndex].name,
                         video: stream.hasVideo,
@@ -633,9 +720,9 @@ const VonageVideoMeeting = ({
                       return updated;
                     }
 
-                    console.log("Creating new participant for stream");
                     const newParticipant = {
                       id: stream.streamId,
+                      connectionId: stream.connection.connectionId,
                       name: stream.name || "Remote User",
                       isLocal: false,
                       video: stream.hasVideo,
@@ -644,11 +731,10 @@ const VonageVideoMeeting = ({
                       isHost: false,
                     };
 
-                    const updatedParticipants = [...prev, newParticipant];
-                    console.log("Updated participants:", updatedParticipants);
-                    return updatedParticipants;
+                    return [...prev, newParticipant];
                   });
 
+                  // Add event listeners for video/audio state changes
                   subscriber.on("videoEnabled", () => {
                     setParticipants((prev) =>
                       prev.map((p) =>
@@ -686,17 +772,27 @@ const VonageVideoMeeting = ({
               console.error("Exception during subscription:", subscribeError);
               subscribersRef.current.delete(stream.streamId);
             }
-          }, 200);
+          }, 500);
         }
       });
 
+      // Also update the streamDestroyed handler:
       session.on("streamDestroyed", (event) => {
         const stream = event.stream;
         const isScreenShare =
           (stream.name && stream.name.includes("(Screen)")) ||
           stream.videoType === "screen";
 
+        console.log(
+          "Stream destroyed:",
+          stream.streamId,
+          "isScreenShare:",
+          isScreenShare
+        );
+
         if (isScreenShare) {
+          // Clean up screen share
+          subscribersRef.current.delete(`screenshare-${stream.streamId}`);
           setScreenShareState({
             isSharing: false,
             isReceiving: false,
@@ -705,6 +801,8 @@ const VonageVideoMeeting = ({
           });
           setParticipants((prev) => prev.filter((p) => !p.isScreenShare));
         } else if (stream && stream.streamId) {
+          // Clean up regular participant
+          subscribersRef.current.delete(stream.streamId);
           setParticipants((prev) =>
             prev.filter((p) => p.id !== stream.streamId)
           );
@@ -799,24 +897,39 @@ const VonageVideoMeeting = ({
         try {
           const data = JSON.parse(event.data);
           const { newHostId, newHostName, previousHost } = data;
+          console.log('newHostId:', newHostId);
+          console.log('newHostName:', newHostName);
+          console.log('previousHost:', previousHost);
 
-          // Check if current user is the new host
           const isNewHost =
             session.connection && session.connection.connectionId === newHostId;
+          console.log("is New Host:", isNewHost);
 
           if (isNewHost) {
+            console.log("You are now the host of the meeting");
             setIsHost(true);
-            alert(`You are now the host of this meeting!`);
+            // alert(`You are now the host of this meeting!`);
+            setShowLeaveMeetingModal(false);
+            // setTimeout(() => setShowLeaveMeetingModal(true), 100);
           } else {
+            console.log("You are no longer the host of the meeting");
             setIsHost(false);
           }
 
-          // Update participants list to reflect new host
           setParticipants((prev) =>
-            prev.map((p) => ({
-              ...p,
-              isHost: p.id === newHostId,
-            }))
+            prev.map((p) => {
+              let isThisParticipantNewHost = false;
+              
+              if (p.isLocal && session.connection) {
+                isThisParticipantNewHost = session.connection.connectionId === newHostId;
+              } else if (p.subscriber?.stream?.connection) {
+                isThisParticipantNewHost = p.subscriber.stream.connection.connectionId === newHostId;
+              }
+              return {
+                ...p,
+                isHost: isThisParticipantNewHost,
+              };
+            })
           );
 
           console.log(
@@ -827,7 +940,6 @@ const VonageVideoMeeting = ({
         }
       });
 
-      // Connect to session with timeout using the correct token
       console.log("Connecting to session...");
 
       const connectPromise = new Promise((resolve, reject) => {
@@ -843,7 +955,7 @@ const VonageVideoMeeting = ({
               )
             );
           }
-        }, 15000); // 15 second timeout
+        }, 20000); // 15 second timeout
 
         session.connect(currentToken, (error) => {
           if (isResolved) return;
@@ -882,7 +994,7 @@ const VonageVideoMeeting = ({
               try {
                 const userData = JSON.parse(conn.data);
                 name = userData.name || name;
-              } catch { }
+              } catch {}
             }
             return {
               id: conn.connectionId,
@@ -894,6 +1006,7 @@ const VonageVideoMeeting = ({
           });
         return [...prev, ...newParticipants];
       });
+
       setCurrentView("meeting");
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -920,11 +1033,11 @@ const VonageVideoMeeting = ({
         publishAudio: finalAudioState,
         publishVideo: finalVideoState,
         videoSource:
-          selectedDevices.camera && deviceInfo.hasCamera
+          selectedDevices.camera && deviceInfo.hasCamera && finalVideoState
             ? selectedDevices.camera
             : undefined,
         audioSource:
-          selectedDevices.microphone && deviceInfo.hasMicrophone
+          selectedDevices.microphone && deviceInfo.hasMicrophone && finalAudioState
             ? selectedDevices.microphone
             : undefined,
         resolution: "640x480",
@@ -1031,6 +1144,8 @@ const VonageVideoMeeting = ({
 
       publisherRef.current = publisher;
       setIsConnecting(false);
+      updateUrlForJoining(sessionId, currentToken, userName, isHost);
+      setCurrentView("meeting");
 
       setParticipants((prev) => {
         const ids = new Set(prev.map((p) => p.id));
@@ -1044,7 +1159,7 @@ const VonageVideoMeeting = ({
               try {
                 const userData = JSON.parse(conn.data);
                 name = userData.name || name;
-              } catch { }
+              } catch {}
             }
             return {
               id: conn.connectionId,
@@ -1092,7 +1207,9 @@ const VonageVideoMeeting = ({
 
       setConnectionError(errorMessage);
       setIsConnecting(false);
-      setCurrentView("landing"); // Go back to landing on error
+      if (currentView !== "prejoin") {
+        setCurrentView("prejoin");
+      }
     }
   }, [
     userName,
@@ -1103,17 +1220,50 @@ const VonageVideoMeeting = ({
     generateToken,
     OT,
     checkDeviceAvailability,
+    updateUrlForJoining,
   ]);
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const currentPath = window.location.pathname;
+
+      if (currentPath === "/") {
+        if (sessionRef.current) {
+          try {
+            sessionRef.current.disconnect();
+            sessionRef.current = null;
+          } catch (e) {
+            console.warn("Error disconnecting session on navigation:", e);
+          }
+        }
+        if (publisherRef.current) {
+          try {
+            publisherRef.current.destroy();
+            publisherRef.current = null;
+          } catch (e) {
+            console.warn("Error destroying publisher on navigation:", e);
+          }
+        }
+        setCurrentView("landing");
+      } else if (currentPath.includes("/meeting/")) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get("token");
+        const urlUserName = urlParams.get("user");
+
+        if (urlToken && urlUserName) {
+          setCurrentView("meeting");
+        } else {
+          setCurrentView("prejoin");
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Toggle functions
   const toggleVideo = async () => {
-    const deviceInfo = await checkDeviceAvailability();
-
-    if (!deviceInfo.hasCamera) {
-      setConnectionError("No camera detected. Cannot toggle video.");
-      return;
-    }
-
     const newVideoState = !meetingState.video;
     setMeetingState((prev) => ({ ...prev, video: newVideoState }));
 
@@ -1130,13 +1280,6 @@ const VonageVideoMeeting = ({
   };
 
   const toggleAudio = async () => {
-    const deviceInfo = await checkDeviceAvailability();
-
-    if (!deviceInfo.hasMicrophone) {
-      setConnectionError("No microphone detected. Cannot toggle audio.");
-      return;
-    }
-
     const newAudioState = !meetingState.audio;
     setMeetingState((prev) => ({ ...prev, audio: newAudioState }));
 
@@ -1296,103 +1439,139 @@ const VonageVideoMeeting = ({
   }, [screenShareState.isSharing, meetingState, userName, selectedDevices, OT]);
 
   const toggleChat = () => {
-    setMeetingState((prev) => ({ ...prev, chat: !prev.chat, participants: false }));
+    setMeetingState((prev) => ({
+      ...prev,
+      chat: !prev.chat,
+      participants: false,
+    }));
   };
 
   const toggleParticipants = () => {
-    setMeetingState((prev) => ({ ...prev, participants: !prev.participants, chat: false }));
+    setMeetingState((prev) => ({
+      ...prev,
+      participants: !prev.participants,
+      chat: false,
+    }));
   };
 
-  const takeScreenshot = useCallback(async (options = {}) => {
-    const {
-      filename = `meeting-screenshot-${new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace(/:/g, "-")}.png`,
-      quality = 0.9,
-      format = "image/png",
-      method = "auto",
-    } = options;
+  const takeScreenshot = useCallback(
+    async (options = {}) => {
+      const {
+        filename = `meeting-screenshot-${new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/:/g, "-")}.png`,
+        quality = 0.9,
+        format = "image/png",
+        method = "auto",
+      } = options;
 
-    const html2canvasScreenshot = async () => {
-      if (!html2canvas) {
-        throw new Error("html2canvas library not available");
-      }
-
-      const videoContainer =
-        document.querySelector(".meeting-room .video-container") ||
-        document.querySelector(".video-container") ||
-        document.querySelector("#video-container");
-
-      if (!videoContainer) {
-        throw new Error("Video container not found");
-      }
-
-      const canvas = await html2canvas(videoContainer, {
-        allowTaint: true,
-        useCORS: true,
-        scale: 1,
-        logging: false,
-        backgroundColor: "#000000",
-        ignoreElements: (element) => {
-          return element.classList.contains("meeting-controls");
-        },
-      });
-
-      return new Promise((resolve, reject) => {
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error("Failed to create screenshot"));
-              return;
-            }
-
-            downloadImage(blob, filename);
-            resolve({
-              blob,
-              filename,
-              timestamp: new Date().toISOString(),
-              method: "html2canvas",
-            });
-          },
-          format,
-          quality
-        );
-      });
-    };
-
-    const downloadImage = (blob, filename) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.style.display = "none";
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
-    setMeetingState((prev) => ({ ...prev, screenShot: !prev.screenShot }));
-
-    try {
-      if (method === "screen-capture" || method === "auto") {
-        try {
-          return await html2canvasScreenshot();
-        } catch (error) {
-          console.warn(
-            "Screen capture failed, trying element capture:",
-            error.message
-          );
-          if (method === "screen-capture") throw error;
+      const html2canvasScreenshot = async () => {
+        if (!html2canvas) {
+          throw new Error("html2canvas library not available");
         }
+
+        const videoContainer =
+          document.querySelector(".meeting-room .video-container") ||
+          document.querySelector(".video-container") ||
+          document.querySelector("#video-container");
+
+        if (!videoContainer) {
+          throw new Error("Video container not found");
+        }
+
+        const canvas = await html2canvas(videoContainer, {
+          allowTaint: true,
+          useCORS: true,
+          scale: 1,
+          logging: false,
+          backgroundColor: "#000000",
+          ignoreElements: (element) => {
+            return element.classList.contains("meeting-controls");
+          },
+        });
+
+        return new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Failed to create screenshot"));
+                return;
+              }
+
+              if (screenShotWithChat) {
+                const screenshotId = `screenshot_${Date.now()}_${Math.random()
+                  .toString(36)
+                  .substr(2, 9)}`;
+
+                const screenshotData = {
+                  id: screenshotId,
+                  blob,
+                  filename,
+                  timestamp: new Date().toISOString(),
+                  url: URL.createObjectURL(blob),
+                };
+
+                setChatAttachments((prev) => [...prev, screenshotData]);
+
+                const placeholderText = `📸 Screenshot attached: ${filename}`;
+                setChatInput(
+                  (prev) => prev + (prev ? "\n" : "") + placeholderText
+                );
+
+                setMeetingState((prev) => ({ ...prev, chat: true }));
+              } else {
+                downloadImage(blob, filename);
+              }
+
+              resolve({
+                blob,
+                filename,
+                timestamp: new Date().toISOString(),
+                method: "html2canvas",
+              });
+            },
+            format,
+            quality
+          );
+        });
+      };
+
+      const downloadImage = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+
+      setMeetingState((prev) => ({ ...prev, screenShot: !prev.screenShot }));
+
+      try {
+        if (method === "screen-capture" || method === "auto") {
+          try {
+            return await html2canvasScreenshot();
+          } catch (error) {
+            console.warn(
+              "Screen capture failed, trying element capture:",
+              error.message
+            );
+            if (method === "screen-capture") throw error;
+          }
+        }
+      } catch (error) {
+        console.error("All screenshot methods failed:", error);
+        throw error;
       }
-    } catch (error) {
-      console.error("All screenshot methods failed:", error);
-      throw error;
-    }
-  }, []);
+    },
+    [screenShotWithChat, setChatInput, setChatAttachments, setMeetingState]
+  );
 
   const transferHost = async (newHostId) => {
     try {
@@ -1429,9 +1608,41 @@ const VonageVideoMeeting = ({
     }
   };
 
-  const leaveMeeting = () => {
+  const leaveMeeting = async (newHostId = null) => {
     setShowLeaveMeetingModal(false);
     try {
+      if (isHost && newHostId && sessionRef.current) {
+        const newHostParticipant = participants.find((p) => p.id === newHostId);
+        let newHostConnectionId = newHostId;
+        
+        if (newHostParticipant?.subscriber?.stream?.connection) {
+          newHostConnectionId = newHostParticipant.subscriber.stream.connection.connectionId;
+        }
+        
+        await new Promise((resolve, reject) => {
+          sessionRef.current.signal(
+            {
+              type: "hostTransfer",
+              data: JSON.stringify({
+                newHostId: newHostConnectionId,
+                newHostName: newHostParticipant?.name || "Unknown",
+                previousHost: userName,
+              }),
+            },
+            (error) => {
+              if (error) {
+                console.error("Error sending host transfer signal:", error);
+                reject(error);
+              } else {
+                console.log("Host transfer signal sent successfully");
+                resolve();
+              }
+            }
+          );
+        });
+        setIsHost(false);
+      }
+
       subscribersRef.current.forEach((subscriber, streamId) => {
         try {
           console.log("Cleaning up subscriber:", streamId);
@@ -1457,7 +1668,6 @@ const VonageVideoMeeting = ({
         sessionRef.current = null;
       }
 
-      setCurrentView("landing");
       setParticipants([]);
       setChatMessages([]);
       setMeetingState({
@@ -1471,6 +1681,16 @@ const VonageVideoMeeting = ({
       });
       setConnectionError("");
       setIsConnecting(false);
+      setMeetingLink("");
+      setSessionId("");
+      setToken("");
+      setApiKey("");
+      setIsHost(false);
+
+      window.history.replaceState({}, "", "/");
+
+      setCurrentView("landing");
+      // window.location.reload();
     } catch (error) {
       console.error("Error leaving meeting:", error);
     }
@@ -1480,31 +1700,79 @@ const VonageVideoMeeting = ({
     setShowLeaveMeetingModal(true);
   };
 
-  const sendChatMessage = () => {
-    if (chatInput.trim() && sessionRef.current) {
-      const messageObj = {
-        id: Date.now(),
-        sender: userName,
-        message: chatInput,
-        timestamp: new Date().toISOString(),
-      };
+  const sendChatMessage = useCallback(() => {
+    if (!chatInput.trim() && chatAttachments.length === 0) return;
 
-      sessionRef.current.signal(
-        {
-          type: "chat",
-          data: JSON.stringify(messageObj),
-        },
-        (error) => {
-          if (error) {
-            console.error("Error sending chat message:", error);
-          } else {
-            setChatMessages((prev) => [...prev, messageObj]);
-            setChatInput("");
-          }
-        }
-      );
+    const messageId = Date.now().toString();
+    const timestamp = new Date().toISOString();
+
+    const hasScreenshots = chatAttachments.length > 0;
+
+    let messageData = {
+      id: messageId,
+      sender: userName,
+      message: chatInput.trim(),
+      timestamp,
+      type: hasScreenshots ? "screenshot" : "text",
+    };
+
+    if (hasScreenshots) {
+      messageData.screenshots = chatAttachments.map((screenshot) => ({
+        id: screenshot.id,
+        filename: screenshot.filename,
+        url: screenshot.url,
+        timestamp: screenshot.timestamp,
+      }));
+
+      messageData.message = chatInput
+        .replace(/📸 Screenshot attached: .*$/gm, "")
+        .trim();
+      if (!messageData.message) {
+        messageData.message = `Shared ${chatAttachments.length} screenshot${
+          chatAttachments.length > 1 ? "s" : ""
+        }`;
+      }
     }
-  };
+
+    try {
+      setChatMessages((prev) => [...prev, messageData]);
+
+      if (sessionRef.current) {
+        const signalData = {
+          ...messageData,
+          screenshots: messageData.screenshots || undefined,
+        };
+
+        sessionRef.current.signal(
+          {
+            type: "chat",
+            data: JSON.stringify(signalData),
+          },
+          (error) => {
+            if (error) {
+              console.error("Error sending chat message:", error);
+              setChatMessages((prev) =>
+                prev.filter((msg) => msg.id !== messageId)
+              );
+            }
+          }
+        );
+      }
+
+      setChatInput("");
+      setChatAttachments([]);
+    } catch (error) {
+      console.error("Error sending chat message:", error);
+    }
+  }, [
+    chatInput,
+    chatAttachments,
+    userName,
+    sessionRef,
+    setChatMessages,
+    setChatInput,
+    setChatAttachments,
+  ]);
 
   useEffect(() => {
     if (!sessionRef.current) return;
@@ -1549,6 +1817,20 @@ const VonageVideoMeeting = ({
     if (propIsHost !== undefined) setIsHost(propIsHost);
   }, [propSessionId, propToken, propApiKey, propMeetingUrl, propIsHost]);
 
+  useEffect(() => {
+    const path = window.location.pathname;
+    const parts = path.split("/");
+    const sessionIdFromUrl = parts.length > 2 ? parts[2] : null;
+
+    if (sessionIdFromUrl) {
+      setMeetingLink(path);
+      setSessionId(sessionIdFromUrl);
+      setCurrentView("landing");
+    } else {
+      setCurrentView("landing");
+    }
+  }, []);
+
   const getInitials = (name) => {
     return name
       .split(" ")
@@ -1576,7 +1858,7 @@ const VonageVideoMeeting = ({
   }
 
   // Pre-join Screen
-  if (currentView === "prejoin") {
+  if (currentView === "prejoin" || meetingLink === window.location.pathname) {
     return (
       <PrejoinPage
         iconComponents={iconComponents}
@@ -1619,6 +1901,8 @@ const VonageVideoMeeting = ({
       setChatInput={setChatInput}
       toggleAudio={toggleAudio}
       toggleChat={toggleChat}
+      hasCamera={devices.cameras?.length > 0 || false}
+      hasMicrophone={devices.microphones?.length > 0 || false}
       toggleParticipants={toggleParticipants}
       toggleScreenShare={toggleScreenShare}
       takeScreenshot={takeScreenshot}
@@ -1636,6 +1920,9 @@ const VonageVideoMeeting = ({
       showLeaveMeetingModal={showLeaveMeetingModal}
       setShowLeaveMeetingModal={setShowLeaveMeetingModal}
       transferHost={transferHost}
+      screenShotWithChat={screenShotWithChat}
+      chatAttachments={chatAttachments}
+      setChatAttachments={setChatAttachments}
     />
   );
 };
