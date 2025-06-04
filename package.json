@@ -1,6 +1,6 @@
 {
   "name": "vonage-video-meeting-widget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-platform video meeting widget using Vonage Video API with Shadow DOM",
   "private": true,
   "dependencies": {
