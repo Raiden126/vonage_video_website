@@ -20,9 +20,9 @@ import {
   X
 } from "lucide-react";
 import html2canvas from "html2canvas";
-import LandingPage from "./Components/LandingPage";
-import PrejoinPage from "./Components/PrejoinPage";
-import MeetingRoomPage from "./Components/MeetingRoomPage";
+import LandingPage from "./Components/LandingPage.jsx";
+import PrejoinPage from "./Components/PrejoinPage.jsx";
+import MeetingRoomPage from "./Components/MeetingRoomPage.jsx";
 
 const loadVonageSDK = () => {
   return new Promise((resolve, reject) => {
@@ -54,6 +54,8 @@ const VonageVideoMeeting = ({
   theme = {},
   landingPageStyle = {},
   preJoinPageStyle = {},
+  landingPageText = {},
+  preJoinPageText = {}
 }) => {
   const [currentView, setCurrentView] = useState("landing");
   const [userName, setUserName] = useState(username || "");
@@ -160,13 +162,6 @@ const VonageVideoMeeting = ({
       });
   }, []);
 
-  // Initialize devices on mount
-  useEffect(() => {
-    if (currentView === "prejoin" && OT) {
-      initializeDevices();
-    }
-  }, [currentView, OT]);
-
   const checkDeviceAvailability = useCallback(async () => {
     if (!OT) return { hasCamera: false, hasMicrophone: false };
 
@@ -228,6 +223,13 @@ const VonageVideoMeeting = ({
       setConnectionError("Failed to detect audio/video devices");
     }
   }, [OT, checkDeviceAvailability]);
+
+  // Initialize devices on mount
+  useEffect(() => {
+    if (currentView === "prejoin" && OT) {
+      initializeDevices();
+    }
+  }, [currentView, OT, initializeDevices]);
 
   useEffect(() => {
     if (currentView === "prejoin" && previewRef.current && OT) {
@@ -429,12 +431,12 @@ const VonageVideoMeeting = ({
     }
   }, []);
 
-  const updateUrlForMeeting = useCallback((meetingUrl) => {
-    if (meetingUrl) {
-      window.history.pushState({}, "", meetingUrl);
-      setMeetingLink(meetingUrl);
-    }
-  }, []);
+  // const updateUrlForMeeting = useCallback((meetingUrl) => {
+  //   if (meetingUrl) {
+  //     window.history.pushState({}, "", meetingUrl);
+  //     setMeetingLink(meetingUrl);
+  //   }
+  // }, []);
 
   const updateUrlForJoining = useCallback(
     (sessionId, token, userName, isHost) => {
@@ -1851,6 +1853,7 @@ const VonageVideoMeeting = ({
         setSessionId={setSessionId}
         setIsHost={setIsHost}
         customStyle={landingPageStyle}
+        customText={landingPageText}
       />
     );
   }
@@ -1877,6 +1880,7 @@ const VonageVideoMeeting = ({
         copyMeetingLink={copyMeetingLink}
         linkCopied={linkCopied}
         customStyle={preJoinPageStyle}
+        customText={preJoinPageText}
       />
     );
   }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import LeaveMeetingModal from "./LeaveMeetingModel";
+import LeaveMeetingModal from "./LeaveMeetingModel.jsx";
 
 const MeetingRoomPage = ({
   copyMeetingLink,
@@ -119,7 +119,7 @@ const MeetingRoomPage = ({
       const publisherContainer = publisherElementRef.current;
 
       const videoElement = publisherContainer.querySelector("video");
-      const divElements = publisherContainer.querySelectorAll("div");
+      // const divElements = publisherContainer.querySelectorAll("div");
 
       if (videoElement) {
         videoElement.style.width = "100%";

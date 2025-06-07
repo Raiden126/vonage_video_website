@@ -46,9 +46,29 @@ const PrejoinPage = ({
   copyMeetingLink,
   linkCopied,
   customStyle = {},
+  customText = {}
 }) => {
   const style = { ...defaultStyles, ...customStyle };
-
+  const defaultText = {
+    heading: "Join Your Meeting",
+    subheading: "Check your settings before joining",
+    displayNameLabel: "Display Name",
+    displayNamePlaceholder: "Enter your name",
+    shareLinkLabel: "Share Meeting Link",
+    shareLinkNote: "Share this link with participants to join your meeting",
+    copyButton: "Copy",
+    copiedText: "Copied!",
+    joinButtonHost: "Start Meeting",
+    joinButtonGuest: "Join Meeting",
+    joiningButton: "Joining...",
+    cameraOffText: "Camera Off",
+    toggleCameraLabel: "Toggle Camera",
+    toggleMicLabel: "Toggle Microphone",
+    selectCameraLabel: "Camera",
+    selectMicLabel: "Microphone",
+    errorConnection: connectionError || "",
+  };
+  const text = { ...defaultText, ...customText };
 
   const ToggleButton = ({
     enabled,
@@ -132,11 +152,11 @@ const PrejoinPage = ({
         {/* Left Panel */}
         <div className={style.leftPanel}>
           <div className={style.formWrapper}>
-            <h2 className={style.heading}>Join Your Meeting</h2>
-            <p className={style.subheading}>Check your settings before joining</p>
+            <h2 className={style.heading}>{text.heading}</h2>
+            <p className={style.subheading}>{text.subheading}</p>
 
             <label htmlFor="userName" className={style.label}>
-              Display Name
+              {text.displayNameLabel}
             </label>
             <input
               id="userName"
@@ -144,14 +164,14 @@ const PrejoinPage = ({
               disabled={isConnecting}
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
-              placeholder="Enter your name"
+              placeholder={text.displayNamePlaceholder}
               className={style.input}
               autoComplete="off"
             />
 
             {isHost && meetingLink && (
               <>
-                <label className={style.label}>Share Meeting Link</label>
+                <label className={style.label}>{text.shareLinkLabel}</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -163,19 +183,17 @@ const PrejoinPage = ({
                     {linkCopied ? (
                       <>
                         <iconComponents.check className="w-4 h-4 text-green-600" />
-                        <span className="text-green-600">Copied!</span>
+                        <span className="text-green-600">{text.copiedText}</span>
                       </>
                     ) : (
                       <>
                         <iconComponents.copy className="w-4 h-4" />
-                        Copy
+                        {text.copyButton}
                       </>
                     )}
                   </button>
                 </div>
-                <p className={style.shareNote}>
-                  Share this link with participants to join your meeting
-                </p>
+                <p className={style.shareNote}>{text.shareLinkNote}</p>
               </>
             )}
 
@@ -188,17 +206,17 @@ const PrejoinPage = ({
               {isConnecting ? (
                 <>
                   <div className={style.spinner}></div>
-                  Joining...
+                  {text.joiningButton}
                 </>
               ) : (
                 <>
                   <iconComponents.video className="w-6 h-6" />
-                  {isHost ? "Start Meeting" : "Join Meeting"}
+                  {isHost ? text.joinButtonHost : text.joinButtonGuest}
                 </>
               )}
             </button>
 
-            {connectionError && <div className={style.errorBox}>{connectionError}</div>}
+            {connectionError && <div className={style.errorBox}>{connectionError || text.errorConnection}</div>}
           </div>
         </div>
 
@@ -212,7 +230,7 @@ const PrejoinPage = ({
                 <div className={style.avatar}>
                   {userName ? getInitials(userName) : "YN"}
                 </div>
-                <span className={style.cameraStatus}>Camera Off</span>
+                <span className={style.cameraStatus}>{text.cameraOffText}</span>
               </div>
             )}
           </div>
@@ -224,7 +242,7 @@ const PrejoinPage = ({
                 onClick={() => setPreviewEnabled((prev) => ({ ...prev, video: !prev.video }))}
                 IconOn={iconComponents.video}
                 IconOff={iconComponents.videoOff}
-                label="Toggle Camera"
+                label={text.toggleCameraLabel}
                 mediaType="camera"
               />
               <ToggleButton
@@ -232,20 +250,20 @@ const PrejoinPage = ({
                 onClick={() => setPreviewEnabled((prev) => ({ ...prev, audio: !prev.audio }))}
                 IconOn={iconComponents.mic}
                 IconOff={iconComponents.micOff}
-                label="Toggle Microphone"
+                label={text.toggleMicLabel}
                 mediaType="microphone"
               />
             </div>
 
             <div className={style.deviceSection}>
               <DeviceSelect
-                label="Camera"
+                label={text.selectCameraLabel}
                 value={selectedDevices.camera}
                 onChange={(val) => setSelectedDevices((prev) => ({ ...prev, camera: val }))}
                 options={devices.cameras}
               />
               <DeviceSelect
-                label="Microphone"
+                label={text.selectMicLabel}
                 value={selectedDevices.microphone}
                 onChange={(val) => setSelectedDevices((prev) => ({ ...prev, microphone: val }))}
                 options={devices.microphones}

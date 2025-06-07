@@ -1,32 +1,55 @@
 {
   "name": "vonage-video-meeting-widget",
-  "version": "0.1.1",
-  "description": "Cross-platform video meeting widget using Vonage Video API with Shadow DOM",
-  "private": true,
-  "dependencies": {
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^13.5.0",
-    "html2canvas": "^1.4.1",
-    "lucide-react": "^0.511.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
-  },
+  "version": "1.0.5",
+  "description": "Cross-platform video meeting widget using Vonage Video API",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "prepublishOnly": "npm run build"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
   },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "lucide-react": "^0.511.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.23.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rollup": "^4.6.1",
+    "rollup-plugin-postcss": "^4.0.2",
+    "tailwindcss": "^3.4.17"
+  },
+  "keywords": [
+    "vonage",
+    "video",
+    "meeting",
+    "webrtc",
+    "react",
+    "angular",
+    "vue",
+    "widget"
+  ],
+  "author": "Guddu Shakar Paul",
+  "license": "ISC",
   "browserslist": {
     "production": [
       ">0.2%",
@@ -38,8 +61,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "tailwindcss": "^3.4.17"
   }
 }

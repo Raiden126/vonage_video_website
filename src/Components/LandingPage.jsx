@@ -10,10 +10,26 @@ const LandingPage = ({
   extractSessionIdFromUrl,
   setSessionId,
   setIsHost,
-  customStyle = {}
+  customStyle = {},
+  customText = {}
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
+
+  const defaultText = {
+    heading: "Welcome to the Voyage Video Meeting Platform",
+    subheading: "Create a new room or join an existing one.",
+    createButton: "Create Meeting",
+    creatingButton: "Creating...",
+    joinPlaceholder: "Enter meeting link",
+    joinButton: "Join Meeting",
+    dividerText: "or",
+    errorInvalidLink: "Please enter a valid meeting link",
+    errorInvalidFormat: "Invalid meeting link format",
+    errorCreateFail: "Failed to create meeting. Please try again.",
+  };
+
+  const text = { ...defaultText, ...customText };
 
   const handleCreateMeeting = async () => {
     setIsCreating(true);
@@ -34,7 +50,7 @@ const LandingPage = ({
       setCurrentView("prejoin");
     } catch (error) {
       console.error("Error creating meeting:", error);
-      setError("Failed to create meeting. Please try again.");
+      setError(text.errorCreateFail);
     } finally {
       setIsCreating(false);
     }
@@ -42,13 +58,13 @@ const LandingPage = ({
 
   const handleJoinMeeting = () => {
     if (!meetingLink.trim()) {
-      setError("Please enter a valid meeting link");
+      setError(text.errorInvalidLink);
       return;
     }
 
     const extractedSessionId = extractSessionIdFromUrl(meetingLink);
     if (!extractedSessionId) {
-      setError("Invalid meeting link format");
+      setError(text.errorInvalidFormat);
       return;
     }
 
@@ -85,12 +101,15 @@ const LandingPage = ({
     <div className={styles.container}>
       <div className={styles.leftSection}>
         <h1 className={styles.heading}>
-          Welcome to the <br />
-          Voyage Video <br />
-          Meeting Platform
+          {text.heading.split("\n").map((line, index) => (
+            <React.Fragment key={index}>
+              {line}
+              <br />
+            </React.Fragment>
+          ))}
         </h1>
         <p className={styles.subheading}>
-          Create a new room or join an existing one.
+          {text.subheading}
         </p>
       </div>
 
@@ -105,12 +124,12 @@ const LandingPage = ({
             {isCreating ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Creating...
+                {text.creatingButton}
               </>
             ) : (
               <>
                 <iconComponents.video className="w-5 h-5" />
-                Create Meeting
+                {text.createButton}
               </>
             )}
           </button>
@@ -127,7 +146,7 @@ const LandingPage = ({
           <div className={styles.joinSection}>
             <input
               type="text"
-              placeholder="Enter meeting link"
+              placeholder={text.joinPlaceholder}
               // value={meetingLink}
               onChange={(e) => setMeetingLink(e.target.value)}
               className={styles.input}
@@ -137,7 +156,7 @@ const LandingPage = ({
               disabled={!meetingLink.trim()}
               className={`${styles.joinButton} ${!meetingLink.trim() ? "bg-gray-300 cursor-not-allowed" : "bg-gray-600 hover:bg-gray-700"}`}
             >
-              Join Meeting
+              {text.joinButton}
             </button>
           </div>
 

@@ -1,0 +1,8 @@
+src/
+node_modules/
+.git/
+.github/
+*.log
+.DS_Store
+rollup.config.js
+.babelrc
